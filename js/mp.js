@@ -282,6 +282,7 @@
         i.walk = !!(m.f & 2); i.crouch = !!(m.f & 4); i.jump = !!(m.f & 8); i.use = !!(m.f & 16); i.reload = !!(m.f & 32); i.fire = !!(m.f & 64); i.fire2 = !!(m.f & 128); a.jumpBuffered = !!(m.f & 256);
         i.fwd = m.mv ? m.mv[0] : 0; i.side = m.mv ? m.mv[1] : 0;
         a.lastNet = now;
+        if (G.AntiCheat) G.AntiCheat.netMove(a, a.pos, Gm().time);
         // luneta / supressor / rajada são estado da arma na mão
         const w = a.weapon();
         if (w && w.def) {

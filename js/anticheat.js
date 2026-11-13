@@ -30,6 +30,7 @@
     speed: ['Velocidade acima do limite da arma', 20, 60],
     bhop: ['Sequências de pulos perfeitos', 5, 20],
     hs: ['Taxa de tiros na cabeça improvável', 15, 15],
+    aim: ['Precisão sobre-humana (acertos e cabeças acima do possível)', 35, 85],
     aa: ['Pose transmitida diverge da mira (anti-aim)', 10, 40],
     lag: ['Posição transmitida atrasada (fake lag)', 10, 30]
   };
@@ -60,6 +61,21 @@
   AC.monitorBots = false;                       // teste de falsos positivos: analisa os bots como jogadores
   const mon = a => !Gm().clientMode && (a.isHuman || !!a.remote || AC.monitorBots);
 
+  // online: o anfitrião mede a velocidade REAL do jogador remoto (o cliente manda a própria velocidade, que pode mentir)
+  AC.netMove = (a, p, now) => {
+    if (!a.remote || !mon(a)) return;
+    const s = S(a), g = Gm(), w = s.nw;
+    if (g.phase !== 'live' || g.roundTime < 2.5 || !a.alive) { s.nw = null; return; }
+    if (!w) { s.nw = { t0: now, last: p.clone(), len: 0 }; return; }
+    w.len += Math.hypot(p.x - w.last.x, p.z - w.last.z); w.last.copy(p);
+    const T = now - w.t0;
+    if (T >= 0.8) {
+      const maxS = G.PHYS.RUN * ((a.wdef().speed || 250) / 250), v = w.len / T;
+      if (v > maxS * 1.5 && w.len > 4) { s.netBad = (s.netBad || 0) + 1; if (s.netBad >= 2) { s.netBad = 0; flag(a, 'speed', 1, `${v.toFixed(1)} m/s medido (máx ${maxS.toFixed(1)})`); } }
+      else s.netBad = Math.max(0, (s.netBad || 0) - 0.5);
+      s.nw = { t0: now, last: p.clone(), len: 0 };
+    }
+  };
   AC.state = a => S(a);
   AC.reset = () => { st.clear(); warned = {}; banned = false; lastVis = 0; hideBan(); for (const a of (Gm().agents || [])) S(a); };
 
@@ -70,6 +86,7 @@
     const s = S(a), now = Gm().time;
     const firstOfBurst = now - s.lastShot > 0.35;
     s.shots++; s.lastShot = now; s.pend = (s.pend || 0) + 1;
+    if (def.pellets === 1 && def.cat !== 'knife') s.pShots = (s.pShots || 0) + 1;
     if (!mon(a)) return;
     // linha de mira-base (antes da dispersão), usada pelos detectores de precisão
     const eye = a.eye();
@@ -82,7 +99,7 @@
     }
     const dev = Math.hypot(U.angDiff(info.ey, info.by), info.bp - info.ep) * R2D;
     const patMag = Math.hypot(info.pr[0], info.pr[1]);
-    if (dev > 1.0 && a.isHuman) {          // bots compensam recuo de propósito (modelo de mira deles)
+    if (dev > 1.0 && (a.isHuman || a.remote)) {          // bots compensam recuo de propósito (modelo de mira deles); jogadores online contam como humanos
       if (patMag > 1.2 && dev > patMag * 0.5 && dev < patMag * 1.6) flag(a, 'recoil');
       else flag(a, 'silent', dev > 8 ? 2 : 1, `${dev.toFixed(1)}° fora da mira`);
     }
@@ -98,6 +115,7 @@
     const a = o.shooter, v = o.victim; if (!a || !v || a === v) return;
     const s = S(a), now = Gm().time;
     s.hits++; if (o.group === 'head') s.hsHits++;
+    if (o.def && o.def.pellets === 1) { s.pHits = (s.pHits || 0) + 1; if (o.group === 'head') s.pHs = (s.pHs || 0) + 1; }
     // reação: primeiro acerto desde que o alvo ficou visível
     const since = s.vis.get(v);
     if (since !== undefined && since >= 0 && !s.firstHit.get(v)) { s.firstHit.set(v, true); const r = now - since; if (r < 2 && (s.visAng.get(v) || 0) > 6) s.reactions.push(r); }
@@ -240,6 +258,8 @@
       if (s.reactions.length >= 6) { const m = median(s.reactions); setPts(a, 'reaction', m < 0.09 ? 40 : m < 0.14 ? 30 : 0); }
       const trg = s.triggers.filter(x => x < 1.5);
       if (trg.length >= 8) { const m = median(trg), fast = trg.filter(x => x < 0.05).length / trg.length; setPts(a, 'trigger', m < 0.035 && fast > 0.7 ? 30 : m < 0.06 && fast > 0.6 ? 12 : 0); }
+      // precisão estatística (armas de tiro único): humanos erram bastante e raramente acertam quase só cabeças
+      if ((s.pShots || 0) >= 30) { const acc = (s.pHits || 0) / s.pShots, hsr = s.pHits ? (s.pHs || 0) / s.pHits : 0; setPts(a, 'aim', s.pShots >= 60 && acc > 0.9 && hsr > 0.75 ? 85 : acc > 0.8 && hsr > 0.65 ? 60 : acc > 0.7 && hsr > 0.55 ? 35 : 0); }
       if (s.hiddenOpp > 8 && s.hiddenEnemies.size >= 2) { const r = s.hiddenAim / s.hiddenOpp; setPts(a, 'hidden', r > 0.35 ? 40 : r > 0.2 ? 25 : 0); }
     }
   };
