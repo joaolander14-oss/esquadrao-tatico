@@ -2,11 +2,11 @@
 // O ANFITRIÃO simula tudo (bots, rodadas, dano, economia, bomba e o Guardião).
 // Os CONVIDADOS mandam o próprio movimento/mira/tiros/ações e recebem o estado ~20×/s + eventos.
 (function () {
-  const MP = G.MP = { role: null, ver: 4, players: [], code: null, bots: true, status: '', transport: null };
+  const MP = G.MP = { role: null, ver: 5, players: [], code: null, bots: true, status: '', transport: null };
   const Gm = () => G.Game, U = G.U, M = G.Map, C = G.Combat;
   const $ = id => document.getElementById(id);
   const PREFIX = 'esqtat-';
-  let peer = null, hostConn = null, relayH = null, relayG = null, p2pConn = null, joinTok = 0, hostTimer = 0, guestTimer = 0, lastRx = 0;
+  let peer = null, hostConn = null, relayH = null, relayG = null, p2pConn = null, joinTok = 0, hostTimer = 0, guestTimer = 0, lastRx = 0, pubTimer = 0, quickTok = 0, peerTaken = false;
   const relayConns = new Map();
   const r2 = v => Math.round(v * 100) / 100, r3 = v => Math.round(v * 1000) / 1000;
   const v3 = p => [r2(p.x), r2(p.y), r2(p.z)];
@@ -124,7 +124,7 @@
   function status(s) { MP.status = s; ui(); }
 
   MP.leave = () => {
-    joinTok++; clearInterval(hostTimer); clearInterval(guestTimer);
+    joinTok++; clearInterval(hostTimer); clearInterval(guestTimer); clearInterval(pubTimer);
     try { if (hostConn && !hostConn.relay) hostConn.close(); } catch (e) { }
     try { if (p2pConn) p2pConn.close(); } catch (e) { }
     try { if (peer) peer.destroy(); } catch (e) { }
@@ -145,14 +145,15 @@
         if (done) return;
         peer = new Peer(PREFIX + MP.code, { debug: 0, config: ICE });
         peer.on('open', () => fin(true));
-        peer.on('error', e => { if (e.type === 'unavailable-id' && tries++ < 4) { try { peer.destroy(); } catch (x) { } MP.code = code5(); make(); } else if (!done) fin(false); });
+        peer.on('error', e => { if (e.type === 'unavailable-id' && MP.fixed) { peerTaken = true; if (!done) fin(false); } else if (e.type === 'unavailable-id' && tries++ < 4) { try { peer.destroy(); } catch (x) { } MP.code = code5(); make(); } else if (!done) fin(false); });
       };
       make();
     });
   }
-  MP.host = async () => {
-    MP.leave(); status('Criando a sala…');
-    MP.code = code5();
+  MP.host = async (opt) => {
+    MP.leave(); status(opt && opt.pub ? 'Abrindo o servidor deste mapa…' : 'Criando a sala…');
+    MP.fixed = !!(opt && opt.code); peerTaken = false;
+    MP.code = MP.fixed ? opt.code : code5();
     let p2p = false;
     try { await loadPeer(); p2p = await openPeer(); } catch (e) { p2p = false; }
     if (p2p) {
@@ -163,9 +164,10 @@
       });
       peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) { } });
     } else { try { if (peer) peer.destroy(); } catch (e) { } peer = null; }
+    if (!p2p && peerTaken && MP.fixed) { MP.code = null; return 'taken'; }
     relayH = Relay.host(MP.code, relayUp);
     const nb = await relayH.start();
-    if (!p2p && !nb) { try { relayH.close(); } catch (e) { } relayH = null; MP.code = null; status('Sem conexão com os servidores de sala. Verifique a internet e tente de novo.'); return; }
+    if (!p2p && !nb) { try { relayH.close(); } catch (e) { } relayH = null; MP.code = null; status('Sem conexão com os servidores de sala. Verifique a internet e tente de novo.'); return 'fail'; }
     MP.role = 'host';
     MP.players = [{ id: 'host', name: myName(), team: Gm().settings.team || 'T', host: true }];
     clearInterval(hostTimer);
@@ -175,7 +177,19 @@
       for (const pl of MP.players) if (pl.conn && pl.conn.relay) send(pl.conn, { t: 'hb' });
     }, 3000);
     status(p2p && nb ? 'Sala criada. Envie o código ou o link para os amigos.' : nb ? 'Sala criada (modo retransmissão: a conexão direta não está disponível aqui).' : 'Sala criada (só conexão direta: os servidores de retransmissão não responderam).');
+    if (opt && opt.pub) {
+      Gm().settings.map = opt.map; MP.bots = true; MP.pub = { map: opt.map, n: opt.n || 1, left: 20, code: MP.code };
+      status('Você abriu o servidor deste mapa. A partida começa em instantes e outros jogadores entram sozinhos.');
+      clearInterval(pubTimer);
+      pubTimer = setInterval(() => {
+        if (MP.role !== 'host' || !MP.pub || Gm().phase !== 'menu') return;
+        if (MP.players.length >= 2 && MP.pub.left > 10) MP.pub.left = 10;
+        MP.pub.left = Math.max(0, MP.pub.left - 1); lobbyChanged();
+        if (MP.pub.left <= 0) { clearInterval(pubTimer); MP.bots = true; MP.start(); }
+      }, 1000);
+    }
     lobbyChanged();
+    return 'ok';
   };
   // mensagens que chegam pelos brokers: cria/atualiza a "conexão" virtual do convidado e entrega ao mesmo tratador do P2P
   function relayUp(bi, m) {
@@ -197,7 +211,7 @@
       const gid = m.gid || c.peer;
       if (MP.players.some(x => x.id === gid)) { send(c, { t: 'welcome', id: gid }); return; }            // hello repetido / 2º caminho
       if (m.ver !== MP.ver) { send(c, { t: 'err', msg: 'Versão do jogo diferente da do anfitrião — atualize a página (Ctrl+F5).' }); setTimeout(() => c.close(), 400); return; }
-      if (Gm().phase !== 'menu') { send(c, { t: 'err', msg: 'A partida já começou. Espere a próxima.' }); setTimeout(() => c.close(), 400); return; }
+      if (Gm().phase !== 'menu' && !MP.pub) { send(c, { t: 'err', msg: 'A partida já começou. Espere a próxima.' }); setTimeout(() => c.close(), 400); return; }
       if (MP.players.length >= 10) { send(c, { t: 'err', msg: 'Sala cheia (10 jogadores).' }); setTimeout(() => c.close(), 400); return; }
       const nT = MP.players.filter(p => p.team === 'T').length, nCT = MP.players.length - nT;
       MP.players.push({ id: gid, name: uniqueName(m.name), team: nT <= nCT ? 'T' : 'CT', conn: c, pref: m.pref || {} });
@@ -208,6 +222,7 @@
     const p = MP.players.find(x => x.conn === c); if (!p) return;
     if (m.t === 'team') { p.team = m.team === 'CT' ? 'CT' : 'T'; lobbyChanged(); return; }
     if (m.t === 'ping') { send(c, { t: 'pong', s: m.s }); return; }
+    if (m.t === 'enter') { lateJoin(p); return; }
     if (p.agent) gameMsg(p.agent, m);
   }
   function hostDrop(c) {
@@ -220,7 +235,7 @@
   function lobbyChanged() {
     if (MP.role === 'host') {
       const s = Gm().settings;
-      bcast({ t: 'lobby', players: MP.players.map(p => ({ id: p.id, name: p.name, team: p.team, host: !!p.host })), map: s.map, rounds: s.rounds, bots: MP.bots });
+      bcast({ t: 'lobby', players: MP.players.map(p => ({ id: p.id, name: p.name, team: p.team, host: !!p.host, in: !!p.agent })), map: s.map, rounds: s.rounds, bots: MP.bots, pub: MP.pub ? { left: MP.pub.left, live: Gm().phase !== 'menu', round: Gm().round } : null });
     }
     ui();
   }
@@ -259,10 +274,28 @@
   MP.onMatchCreated = () => {
     const g = Gm();
     if (MP.role !== 'host') return;
-    const roster = g.agents.map(a => ({ name: a.name, team: a.team, agentId: a.agentId, group: a.group, bot: !a.isHuman && !a.remote }));
-    for (const p of MP.players) if (p.conn && p.agent) send(p.conn, { t: 'start', ver: MP.ver, roster, you: idx(p.agent), map: g.settings.map, rounds: g.settings.rounds, diff: g.settings.diff });
+    for (const p of MP.players) if (p.conn && p.agent) sendStart(p);
     sendT = 0; statT = 0;
   };
+  function sendStart(p) {
+    const g = Gm(), roster = g.agents.map(a => ({ name: a.name, team: a.team, agentId: a.agentId, group: a.group, bot: !a.isHuman && !a.remote }));
+    send(p.conn, { t: 'start', ver: MP.ver, roster, you: idx(p.agent), map: g.settings.map, rounds: g.settings.rounds, diff: g.settings.diff });
+  }
+  // servidor público: entrar numa partida em andamento no lugar de um bot (sem admin, sem esperar a próxima)
+  function lateJoin(p) {
+    const g = Gm(); if (g.phase === 'menu' || p.agent || !p.conn) return;
+    const free = t => g.agents.filter(a => !a.isHuman && !a.remote && a.team === t);
+    let team = p.team; if (!free(team).length) team = team === 'T' ? 'CT' : 'T';
+    const list = free(team);
+    if (!list.length) { send(p.conn, { t: 'err', msg: 'Partida cheia: sem vaga agora. Tente de novo em instantes.' }); return; }
+    const a = list.find(x => !x.alive) || list[0];
+    p.team = team; a.remote = p.id; a.agentPref = p.pref; a.name = p.name; p.agent = a; a.lastNet = g.time;
+    sendStart(p);
+    send(p.conn, { t: 'tp', p: [a.pos.x, a.pos.y, a.pos.z], y: a.yaw, pi: a.pitch });          // nasce onde estava o bot
+    MP.emit('msg', { s: p.name + ' entrou na partida', d: 3 }, a);
+    G.HUD.centerMsg(p.name + ' entrou na partida', 3);
+    lobbyChanged();
+  }
   MP.start = () => {
     if (MP.role !== 'host') return;
     const g = Gm(); g.settings.team = MP.players[0].team;
@@ -343,20 +376,21 @@
 
   // ================= CONVIDADO =================
   let ready = false, queue = [];
-  MP.join = async (code) => {
+  MP.join = async (code, opt) => {
     code = String(code || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (code.length !== 5) { status('O código tem 5 letras.'); return; }
     MP.leave(); const tok = joinTok; const gid = rid(10); MP.gid = gid;
     let welcomed = null, relayTried = false, failed = false;
     const hello = () => { const s = Gm().settings; return { t: 'hello', ver: MP.ver, name: myName(), pref: { T: s.agentT, CT: s.agentCT }, gid }; };
     status('Conectando à sala ' + code + '…');
-    const fail = (msg) => { if (tok !== joinTok || welcomed || failed) return; failed = true; MP.leave(); status(msg); };
+    const fin = r => { if (opt && opt.cb) { const cb = opt.cb; opt.cb = null; cb(r); } };
+    const fail = (msg) => { if (tok !== joinTok || welcomed || failed) return; failed = true; MP.leave(); if (!(opt && opt.cb)) status(msg); fin(/cheia/.test(msg) ? 'full' : /Versão/.test(msg) ? 'ver' : 'none'); };
     const onMsgFrom = (kind, bi, m) => {
       if (tok !== joinTok || !m || !m.t) return;
       if (!welcomed) {
         if (m.t === 'err') { fail(m.msg); return; }
         if (m.t !== 'welcome') return;
-        welcomed = kind; MP.myId = m.id; MP.role = 'guest'; MP.code = code; MP.transport = kind;
+        welcomed = kind; MP.myId = m.id; MP.role = 'guest'; MP.code = code; MP.transport = kind; fin('ok');
         if (kind === 'relay') { relayG.choose(bi); hostConn = relayG.conn; try { if (p2pConn) p2pConn.close(); } catch (e) { } try { if (peer) peer.destroy(); } catch (e) { } p2pConn = null; peer = null; }
         else { hostConn = p2pConn; if (relayG) { try { relayG.close(); } catch (e) { } relayG = null; } }
         send(hostConn, { t: 'use', gid }); lastRx = performance.now();
@@ -375,7 +409,8 @@
     };
     const onLost = (kind) => {
       if (tok !== joinTok || welcomed !== kind) return;
-      const was = MP.role; MP.leave();
+      const was = MP.role, pubMap = MP.pub && MP.pub.map; MP.leave();
+      if (was === 'guest' && pubMap) { const g0 = Gm(); const re = () => { MP.quickPlay(pubMap); }; if (g0.phase !== 'menu') { G.HUD.banner('SERVIDOR REINICIANDO', '', 'O jogador que rodava a partida saiu — procurando uma nova partida', 4); setTimeout(() => { g0.quitToMenu && g0.quitToMenu(); setTimeout(re, 600 + Math.random() * 1500); }, 2500); } else setTimeout(re, 400 + Math.random() * 1500); status('Procurando nova partida…'); return; }
       if (was === 'guest') { if (Gm().phase !== 'menu') { G.HUD.banner('CONEXÃO PERDIDA', '', 'O anfitrião encerrou a partida', 4); setTimeout(() => Gm().quitToMenu && Gm().quitToMenu(), 2500); } status('Desconectado da sala.'); }
     };
     // via 2: retransmissão (começa se a conexão direta demorar, ou logo se ela falhar)
@@ -389,13 +424,13 @@
       relayG.sendAll(hello());
       setTimeout(() => { if (tok === joinTok && !welcomed && !failed) relayG && relayG.sendAll(hello()); }, 4000);
     };
-    setTimeout(startRelay, 3000);
-    setTimeout(() => fail('Não foi possível entrar na sala ' + code + '. Confira o código e se o anfitrião está com a aba aberta no menu da sala.'), 26000);
+    setTimeout(startRelay, opt && opt.cb ? 1500 : 3000);
+    setTimeout(() => fail('Não foi possível entrar na sala ' + code + '. Confira o código e se o anfitrião está com a aba aberta no menu da sala.'), opt && opt.cb ? 7000 : 26000);
     // via 1: conexão direta (P2P)
     try { await loadPeer(); } catch (e) { startRelay(); return; }
     if (tok !== joinTok) return;
     peer = new Peer({ debug: 0, config: ICE });
-    peer.on('error', e => { if (e.type === 'peer-unavailable' || e.type === 'network' || e.type === 'server-error' || e.type === 'socket-error') startRelay(); });
+    peer.on('error', e => { if (e.type === 'peer-unavailable' || e.type === 'network' || e.type === 'server-error' || e.type === 'socket-error') startRelay(); if (opt && opt.cb && e.type === 'peer-unavailable') setTimeout(() => fail('Não há servidor aberto neste mapa.'), 3800); });
     peer.on('open', () => {
       if (tok !== joinTok) return;
       const c = peer.connect(PREFIX + code, { reliable: true }); p2pConn = c;
@@ -405,6 +440,37 @@
       c.on('error', () => startRelay());
     });
   };
+  // ================= SERVIDOR PÚBLICO (sem sala nem código) =================
+  const h3 = t => { let h = 7; for (const ch of String(t)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h.toString(36).toUpperCase().padStart(3, '0').slice(-3); };
+  MP.pubCode = (map, n) => 'P' + n + h3(map);
+  MP.quickPlay = async (map) => {
+    const tok = ++quickTok; MP.leave();
+    MP.pub = { map, n: 0, left: 0, searching: true };
+    Gm().settings.map = map;
+    status('Procurando partida em ' + (M.defs[map] ? M.defs[map].name : map) + '…');
+    MP.open();
+    let taken = 0, lastN = 0;
+    for (let n = 1; n <= 5; n++) {
+      if (tok !== quickTok) return;
+      if (n !== lastN) { taken = 0; lastN = n; }
+      const code = MP.pubCode(map, n); MP.pub = MP.pub || { map }; MP.pub.n = n;
+      const r = await new Promise(res => MP.join(code, { cb: res }));
+      if (tok !== quickTok) return;
+      MP.pub = { map, n, code, left: 0, searching: r !== 'ok' };
+      if (r === 'ok') return;
+      if (r === 'full') continue;
+      if (r === 'ver') { status('Versão do jogo diferente da deste servidor — atualize a página (Ctrl+F5).'); return; }
+      status('Abrindo o servidor deste mapa…');
+      const h = await MP.host({ code, pub: true, map, n });
+      if (tok !== quickTok) return;
+      if (h === 'ok') return;
+      if (h === 'taken' && taken++ < 3) { n--; await new Promise(r2 => setTimeout(r2, 1000 + Math.random() * 1500)); continue; }
+      if (h === 'fail') { MP.pub = null; return; }
+    }
+    status('Os servidores deste mapa estão cheios. Tente de novo em instantes.');
+    MP.pub = null; MP.leave();
+  };
+  MP.leavePublic = () => { quickTok++; MP.pub = null; MP.leave(); status(''); };
   function guestRecv(m) {
     if (typeof m === 'string') { try { m = JSON.parse(m); } catch (e) { return; } }
     if (!m || !m.t) return;
@@ -466,6 +532,7 @@
         return;
       }
       case 'rs': roundStart(m); return;
+      case 'tp': if (h) { h.pos.set(m.p[0], m.p[1], m.p[2]); h.vel.set(0, 0, 0); h.yaw = m.y; h.pitch = m.pi || 0; } return;
       case 're': {
         const winner = m.w; const txt = { elim: 'eliminaram o time inimigo', bomb: 'detonaram a bomba', defuse: 'desarmaram a bomba', time: 'seguraram até o fim do tempo' }[m.r];
         G.HUD.banner(winner === 'T' ? 'INSURGENTES VENCEM' : 'FORÇA TÁTICA VENCE', winner, `Eles ${txt}` + (m.mvp ? ` · MVP: ${m.mvp}` : ''), 4.5);
@@ -673,6 +740,7 @@
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   function ui() {
     const p = $('mpPanel'); if (!p || p.classList.contains('hidden')) return;
+    if (MP.pub) { pubUi(p); return; }
     const s = Gm().settings, defs = M.defs, inRoom = !!MP.role;
     const link = MP.code ? location.origin + location.pathname + '?sala=' + MP.code : '';
     const lobby = MP.role === 'guest' ? (MP.lobby || {}) : { map: s.map, rounds: s.rounds, bots: MP.bots };
@@ -715,6 +783,32 @@
         $('mpBots').onchange = e => { MP.bots = e.target.checked; lobbyChanged(); };
         $('mpGo').onclick = () => MP.start();
       }
+    }
+  }
+  // tela de entrada do servidor público (aparece para todos que escolhem o mapa; ninguém é admin)
+  function pubUi(p) {
+    const s = Gm().settings, defs = M.defs, pub = MP.pub, inRoom = !!MP.role;
+    const lobby = MP.role === 'guest' ? (MP.lobby || {}) : { pub: { left: pub.left, live: Gm().phase !== 'menu', round: Gm().round }, rounds: s.rounds };
+    const info = lobby.pub || {};
+    const col = t => MP.players.filter(x => x.team === t).map(x => `<div class="pl ${x.id === (MP.role === 'host' ? 'host' : MP.myId) ? 'me' : ''}">${esc(x.name)}${x.in ? ' ●' : ''}</div>`).join('') || '<div class="pl empty">—</div>';
+    const mapName = defs[pub.map] ? defs[pub.map].name : pub.map;
+    p.innerHTML = `<div class="mp-box">
+      <header><b>SERVIDOR PÚBLICO · ${esc(mapName)}</b><button class="x" id="mpX">✕</button></header>
+      ${!inRoom ? `<div class="wait">${esc(MP.status || 'Procurando partida…')}</div>` : `<div class="mp-lobby">
+        <div class="code">Servidor <b>${esc(MP.code || '')}</b>${MP.role === 'guest' && MP.transport ? `<span class="ping">${MP.transport === 'relay' ? 'retransmissão' : 'direta'}${MP.ping ? ' · ' + MP.ping + ' ms' : ''}</span>` : ''}</div>
+        <div class="teams"><div class="tm T"><h4>INSURGENTES</h4>${col('T')}<button data-team="T">Entrar</button></div><div class="tm CT"><h4>FORÇA TÁTICA</h4>${col('CT')}<button data-team="CT">Entrar</button></div></div>
+        ${info.live ? `<div class="opts info">Partida em andamento${info.round ? ' · rodada ' + info.round : ''}. Você entra no lugar de um bot.</div><button class="pri" id="mpEnter">ENTRAR NA PARTIDA</button>`
+          : `<div class="opts info">MR${(lobby.rounds || s.rounds) / 2} · completa com bots até 5 contra 5</div><div class="wait">A partida começa em <b>${info.left === undefined ? '…' : info.left}s</b></div>`}
+        <button id="mpLeave" class="ghost">Sair do servidor</button>
+      </div>`}
+      <div class="st">${esc(MP.status || '')}</div>
+    </div>`;
+    const leave = () => { MP.leavePublic(); close(); };
+    $('mpX').onclick = leave;
+    if (inRoom) {
+      p.querySelectorAll('[data-team]').forEach(b => b.onclick = () => MP.setTeam(b.dataset.team));
+      $('mpLeave').onclick = leave;
+      const en = $('mpEnter'); if (en) en.onclick = () => { MP.send({ t: 'enter' }); status('Entrando na partida…'); };
     }
   }
   MP.ui = ui;

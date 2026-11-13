@@ -792,6 +792,7 @@
 
   function quitToMenu() {
     started = false; paused = true; Gm.phase = 'menu';
+    if (G.MP) G.MP.pub = null;
     if (G.MP && G.MP.role) G.MP.leave();
     H.show(false); H.closeBuy(); H.toggleScoreboard(false, Gm);
     if (G.Touch) G.Touch.show(false);

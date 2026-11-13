@@ -131,15 +131,17 @@
           ${[1, 2, 3, 4].map(i => `<div class="bot"><div class="av">B</div><div><b>Bot ${i}</b><small>${DIFFS[s.diff]}</small></div></div>`).join('')}
         </div>
       </section>
-      <button class="mm-online" id="mmOnline">🌐 JOGAR ONLINE</button>
-      <button class="mm-go" id="mmGo"><span>JOGAR</span><small>${esc(M.defs[s.map].name)} · ${MODES.find(m => m.id === s.rounds).name}</small></button>`;
+      <button class="mm-online priv" id="mmPriv">🔒 SALA PRIVADA</button>
+      <button class="mm-online" id="mmOnline">🤖 TREINO OFFLINE</button>
+      <button class="mm-go" id="mmGo"><span>JOGAR</span><small>Servidor público · ${esc(M.defs[s.map].name)}</small></button>`;
     body.querySelectorAll('.mm-mode').forEach(el => el.onclick = () => { s.rounds = Number(el.dataset.mode); Gm().saveSettings(); render(); });
     body.querySelectorAll('#mmTeam button').forEach(b => b.onclick = () => { s.teamPick = b.dataset.v; if (b.dataset.v !== 'R') s.team = b.dataset.v; Gm().saveSettings(); render(); });
     body.querySelectorAll('#mmDiff button').forEach(b => b.onclick = () => { s.diff = Number(b.dataset.v); Gm().saveSettings(); render(); });
     body.querySelectorAll('.mm-map').forEach(el => el.onclick = () => selectMap(el.dataset.map));
     body.querySelectorAll('.mm-new').forEach(el => el.onclick = () => { const n = NEWS[el.dataset.i]; if (n.map) selectMap(n.map); });
-    $('mmGo').onclick = () => { G.Audio.init(); startQueue(); };
-    $('mmOnline').onclick = () => { G.Audio.init(); if (G.MP) G.MP.open(); };
+    $('mmGo').onclick = () => { G.Audio.init(); if (G.MP) G.MP.quickPlay(s.map); else startQueue(); };
+    $('mmOnline').onclick = () => { G.Audio.init(); startQueue(); };
+    $('mmPriv').onclick = () => { G.Audio.init(); if (G.MP) { G.MP.pub = null; G.MP.open(); } };
   }
   function selectMap(id) {
     G.Audio.ui('buy');

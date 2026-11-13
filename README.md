@@ -20,6 +20,7 @@ Mapas, agentes, armas, facas e acabamentos são **originais**. O jogo é inspira
 - **Guindastes do porto** com escada e passarela no alto; mais casas e fábricas com porta aberta na parede e janelas que abrem e quebram.
 - **Agentes e armas:** 42 agentes, 45 armas com padrão de recuo e penetração, 14 estilos de faca (karambit, borboleta, baionetas, bowie, canivete, tantō, kukri e outros) e 40 acabamentos no Arsenal.
 - **Bots:** com dificuldade ajustável, que usam portas e escadas de mão.
+- **Servidor público por mapa (modo padrão):** o botão JOGAR leva à tela de entrada do mapa escolhido. Todos que escolhem o mesmo mapa caem na mesma partida (sem criar sala nem código, ninguém é admin). Com 2 ou mais jogadores a partida começa em 10 s, ou em 20 s se estiver sozinho, e os bots completam o 5 contra 5. Quem chega com a partida em andamento entra no lugar de um bot pelo botão ENTRAR NA PARTIDA. O navegador do primeiro jogador roda a simulação; se ele sair, os outros procuram uma nova partida sozinhos. TREINO OFFLINE (só bots) e SALA PRIVADA (com código) continuam no menu.
 - **Online:** sala com código de 5 letras, de navegador para navegador (PeerJS), com bots completando os times. Se a conexão direta não fecha (redes com NAT restritivo, como dados móveis), cai sozinha numa retransmissão por MQTT.
 - **Animações:** sacar e recarregar de armas, facas e granadas (carregador cai e sobe, pino da granada, arremesso).
 - **Anti-trapaça Guardião:** decide só pelo que acontece na partida (mira, tiros, movimento e estado do personagem).

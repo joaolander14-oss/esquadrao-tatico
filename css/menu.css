@@ -304,3 +304,8 @@
 .inv-fin .fin i{position:absolute;left:0;right:0;bottom:0;font-style:normal;font-size:9.5px;line-height:1.1;padding:2px 3px;background:#000b;color:#e8edf2;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .inv-fin .fin.on{outline:2px solid var(--acc);outline-offset:-2px}
 .inv .note{display:block;margin-top:6px;color:#6b7686;font-size:11px}
+
+.mm-online.priv{bottom:166px}
+@media (max-height:560px){.mm-online.priv{bottom:114px}}
+#mpPanel .wait{padding:14px 4px;color:#cfd6e0;text-align:center}
+#mpPanel .wait b{color:#ffc23d;font-family:Rajdhani;font-size:28px}
