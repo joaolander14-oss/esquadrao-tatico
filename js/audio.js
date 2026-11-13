@@ -1,7 +1,8 @@
 // Áudio sintetizado com WebAudio (sem arquivos)
 (function () {
   const A = G.Audio = {};
-  let ctx = null, master = null, noiseBuf = null;
+  let ctx = null, master = null, noiseBuf = null, rev = null;
+  const lp = { x: 0, y: 0, z: 0 };
   A.volume = 0.7;
   A.init = () => {
     if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
@@ -12,10 +13,15 @@
     noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
     const d = noiseBuf.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    // reverberação (eco do disparo): resposta ao impulso de ruído que decai
+    const irLen = Math.floor(ctx.sampleRate * 1.5), ir = ctx.createBuffer(2, irLen, ctx.sampleRate);
+    for (let c = 0; c < 2; c++) { const ch = ir.getChannelData(c); for (let i = 0; i < irLen; i++) { const k = i / irLen; ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - k, 3.4) * Math.min(1, i / 300); } }
+    rev = ctx.createConvolver(); rev.buffer = ir; const rg = ctx.createGain(); rg.gain.value = 0.55; rev.connect(rg); rg.connect(master);
   };
   A.setVolume = v => { A.volume = v; if (master) master.gain.value = v; };
   A.listener = (pos, yaw) => {
     if (!ctx) return;
+    lp.x = pos.x; lp.y = pos.y; lp.z = pos.z;
     const L = ctx.listener, fx = -Math.sin(yaw), fz = -Math.cos(yaw);
     if (L.positionX) {
       L.positionX.value = pos.x; L.positionY.value = pos.y; L.positionZ.value = pos.z;
@@ -51,17 +57,38 @@
     g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + (attack || 0.005)); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     o.connect(g); g.connect(dest); o.start(t0); o.stop(t0 + dur + 0.05);
   }
+  // Tiro realista em camadas: estalo agudo + corpo + soco médio + pancada grave + cauda de reverb.
+  // Longe: atraso do som (343 m/s), agudos absorvidos e menos reverb; cada arma tem um timbre próprio (derivado do id).
+  const PROF = {
+    pistol: { crack: 3400, body: 3000, th: [175, 58, 0.09], mid: 1150, dec: 0.1, wet: 0.35, vol: 0.85 },
+    smg: { crack: 3000, body: 3200, th: [150, 50, 0.1], mid: 1000, dec: 0.11, wet: 0.4, vol: 0.85 },
+    rifle: { crack: 2200, body: 3600, th: [120, 40, 0.16], mid: 820, dec: 0.19, wet: 0.65, vol: 1.0 },
+    sniper: { crack: 1800, body: 2800, th: [80, 28, 0.4], mid: 600, dec: 0.36, wet: 1.0, vol: 1.25 },
+    heavy: { crack: 1600, body: 2400, th: [95, 35, 0.26], mid: 520, dec: 0.3, wet: 0.75, vol: 1.15 }
+  };
   A.shot = (def, pos, silenced, isLocal) => {
     if (!ctx) return;
-    const t = ctx.currentTime, d = out(isLocal ? null : pos, isLocal ? 0.55 : 1.0);
+    const dist = (!isLocal && pos) ? Math.hypot(pos.x - lp.x, pos.y - lp.y, pos.z - lp.z) : 0;
+    const t = ctx.currentTime + Math.min(0.45, dist / 343);
+    const d0 = out(isLocal ? null : pos, isLocal ? 0.6 : 1.0);
+    const d = ctx.createBiquadFilter(); d.type = 'lowpass'; d.frequency.value = Math.max(900, 15000 / (1 + dist / 22)); d.connect(d0);
     const cat = def.cat;
-    if (silenced) { noise(d, t, 0.1, 'bandpass', 2400, 0.8, 0.002, 0.09, 0.35); tone(d, t, 'sine', 300, 120, 0.06, 0.15); return; }
     if (def.id === 'taser') { noise(d, t, 0.3, 'highpass', 3000, 1, 0.002, 0.25, 0.5); tone(d, t, 'sawtooth', 120, 90, 0.25, 0.2); return; }
-    const big = cat === 'sniper' ? 1.6 : cat === 'heavy' ? 1.3 : cat === 'rifle' ? 1.1 : cat === 'pistol' ? 0.8 : 0.9;
-    noise(d, t, 0.2, 'lowpass', 4500 / big, 0.7, 0.001, 0.06 + 0.12 * big, 0.9);
-    noise(d, t, 0.2, 'bandpass', 900, 0.9, 0.002, 0.2 * big, 0.5 * big);
-    tone(d, t, 'sine', 140 / big, 45, 0.12 * big, 0.6);
-    if (cat === 'sniper' || def.pellets > 1) noise(d, t + 0.02, 0.6, 'lowpass', 600, 0.5, 0.02, 0.5 * big, 0.25);
+    if (silenced) {
+      noise(d, t, 0.14, 'bandpass', 2300, 0.9, 0.002, 0.1, 0.4); noise(d, t, 0.1, 'lowpass', 900, 0.7, 0.002, 0.06, 0.45);
+      tone(d, t, 'sine', 210, 90, 0.06, 0.18); tone(d, t + 0.025, 'square', 2400, 1600, 0.012, 0.05); return;
+    }
+    let h = 0; for (let i = 0; i < def.id.length; i++) h = (h * 31 + def.id.charCodeAt(i)) | 0;
+    const sig = (0.92 + ((h >>> 0) % 100) / 600) * (0.97 + Math.random() * 0.06);
+    const p = PROF[cat] || PROF.rifle;
+    noise(d, t, 0.05, 'highpass', p.crack * sig, 0.7, 0.0008, 0.02, 1.0 * p.vol);                       // estalo
+    noise(d, t, 0.4, 'lowpass', p.body * sig, 0.6, 0.001, p.dec, 0.9 * p.vol);                          // corpo
+    noise(d, t, 0.4, 'bandpass', p.mid * sig, 0.8, 0.002, p.dec * 1.2, 0.55 * p.vol);                   // soco médio
+    tone(d, t, 'sine', p.th[0] * sig, p.th[1], p.th[2], 0.7 * p.vol, 0.002);                            // pancada grave
+    tone(d, t, 'triangle', p.th[0] * 2 * sig, p.th[1] * 2, p.th[2] * 0.5, 0.22 * p.vol, 0.001);
+    if (def.pellets > 1) { noise(d, t + 0.03, 0.3, 'bandpass', 480, 0.7, 0.004, 0.22, 0.5); tone(d, t + 0.02, 'sine', 70, 35, 0.2, 0.35); }
+    if (cat === 'sniper') { noise(d, t + 0.2, 0.5, 'lowpass', 700, 0.5, 0.02, 0.35, 0.18); noise(d, t + 0.38, 0.5, 'lowpass', 500, 0.5, 0.03, 0.4, 0.1); }   // eco distante
+    if (rev) { const send = ctx.createGain(); send.gain.value = p.wet * (isLocal ? 0.55 : Math.max(0.12, 1 - dist / 130)) * 0.7; noise(send, t, 0.4, 'lowpass', 2600, 0.6, 0.002, 0.16, 0.8); send.connect(rev); }
   };
   A.step = (pos, vol, surface) => {
     if (!ctx) return;

@@ -104,7 +104,7 @@
     props = M.props = [];
     const papi = makePropApi();
     def.props(papi);
-    for (const d of houseDoors) papi.door(d.i, d.j, d.side, { kind: theme.door === 'metal' ? 'metal' : 'wood' });
+    for (const d of houseDoors) papi.door(d.i, d.j, d.side, { kind: (theme.door === 'metal' || d.width === 2) ? 'metal' : 'wood', width: d.width });
     makeWindows(papi);
     try { buildDeck(papi); } catch (e) { console.error('convés', e); }
     M.doors = props.filter(p => p.type === 'door');
@@ -200,14 +200,32 @@
   }
   // peças-chave do tema (def.setpieces = [[tipo, col, lin, rotGraus, opções]]): procura o lugar livre mais próximo e confere os caminhos
   function placeSetPieces(api) {
-    const list = def.setpieces; if (!list || !list.length || !G.Furn) return;
+    if (!G.Furn) return;
+    // passarelas elevadas (catwalks de guindaste etc.): laje sólida + mureta; def.platforms = [{x1,z1,x2,z2,y,th,tex,color,rail}]
+    for (const pl of def.platforms || []) {
+      const th = pl.th || 0.2, w = pl.x2 - pl.x1, d = pl.z2 - pl.z1;
+      api.prop((pl.x1 + pl.x2) / 2, (pl.z1 + pl.z2) / 2, w, th, d, 'block', pl.y - th, { tex: pl.tex || 'steelPlate', color: pl.color || 0xd8a72a });
+      if (pl.rail) {
+        const alongX = w > d, e = 2.4, rx1 = alongX ? pl.x1 + e : pl.x1, rx2 = alongX ? pl.x2 - e : pl.x2, rz1 = alongX ? pl.z1 : pl.z1 + e, rz2 = alongX ? pl.z2 : pl.z2 - e;
+        for (const s of [-1, 1]) { const rx = alongX ? (rx1 + rx2) / 2 : (s < 0 ? rx1 + 0.05 : rx2 - 0.05), rz = alongX ? (s < 0 ? rz1 + 0.05 : rz2 - 0.05) : (rz1 + rz2) / 2; api.prop(rx, rz, alongX ? rx2 - rx1 : 0.1, 0.9, alongX ? 0.1 : rz2 - rz1, 'block', pl.y, { tex: 'metal', color: 0xd8a72a }); }
+      }
+    }
+    let list = (def.setpieces || []).slice();
+    if (!list.length && !def.scatter) return;
     const sp = M.spots, pts = []; for (const k in sp) { const v = sp[k]; if (Array.isArray(v)) pts.push(...v); else if (v && v.x !== undefined) pts.push(v); else if (k === 'routes') for (const s in v) for (const r of v[s]) pts.push(...r); }
     const need = [...new Set(pts.map(p => M.cellIndex(p.x, p.z)).filter(k => k >= 0))];
     const tS = M.cellIndex(sp.tSpawn[0].x, sp.tSpawn[0].z), cS = M.cellIndex(sp.ctSpawn[0].x, sp.ctSpawn[0].z);
     const a0 = reachFrom(tS), b0 = reachFrom(cS), need2 = need.filter(k => a0[k] && b0[k]); const ok = () => { const a = reachFrom(tS), b = reachFrom(cS); for (const k of need2) if (!a[k] || !b[k]) return false; return (!a0[cS] || a[cS]) && (!b0[tS] || b[tS]); }; M.baseReach = (M.baseReach || []).concat([need.length - need2.length]);
     const dc = (M.doors || []).map(p => [(p.x1 + p.x2) / 2, (p.z1 + p.z2) / 2]);
     let n = 0;
+    // espalhar peças temáticas em lugares livres (def.scatter = {tipo: quantidade})
+    if (def.scatter) {
+      const free = []; for (let j = 3; j < H - 3; j++) for (let i = 3; i < W - 3; i++) { const k = j * W + i, t = TYPES[grid[k]] || {}; if (isWall[k] || ramp[k] || water[k] || t.window || t.low || t.deadly || zone[k] || navBlocked[k]) continue; free.push([i, j]); }
+      let sd = 0; for (const kind in def.scatter) for (let q = 0; q < def.scatter[kind]; q++) { sd++; for (let tr = 0; tr < 7; tr++) { const f = free[Math.floor(G.U.hash2(sd * 37 + 11 + tr * 101, def.id.length * 13 + q) * free.length)]; if (f) list.push([kind, f[0], f[1], [0, 90, 180, 270][(sd + tr) % 4], { r: 1, n: q, grp: sd }]); } }
+    }
+    const placedGrp = new Set();
     for (const e of list) {
+      if (e[4] && e[4].grp !== undefined && placedGrp.has(e[4].grp)) continue;
       const kind = e[0], i0 = e[1], j0 = e[2], rot = e[3] || 0, o = e[4] || {}, dm = G.Furn.dims[kind]; if (!dm) continue;
       const rr = ((rot % 360) + 360) % 360, swap = rr === 90 || rr === 270, w = swap ? dm[1] : dm[0], d = swap ? dm[0] : dm[1];
       const R = o.r === undefined ? 3 : o.r; let done = false;
@@ -221,7 +239,7 @@
           if (ii < 1 || jj < 1 || ii >= W - 1 || jj >= H - 1 || isWall[k] || ramp[k] || water[k] || t.window || t.low || t.deadly || Math.abs(floor[k] - base) > 0.05 || zone[k] === 'T' || zone[k] === 'CT' || (cb[k] < 900 && base + dm[2] > cb[k] - 0.05)) { bad = true; break; }
         }
         if (bad) continue;
-        for (const p of props) if (p.x1 < x2 + 0.2 && p.x2 > x1 - 0.2 && p.z1 < z2 + 0.2 && p.z2 > z1 - 0.2 && p.y2 > base + 0.3) { bad = true; break; }
+        for (const p of props) if (p.x1 < x2 + 0.2 && p.x2 > x1 - 0.2 && p.z1 < z2 + 0.2 && p.z2 > z1 - 0.2 && p.y2 > base + 0.3 && p.y1 < base + 2.5) { bad = true; break; }
         for (const [px, pz] of dc) if (Math.hypot(Math.max(x1 - px, 0, px - x2), Math.max(z1 - pz, 0, pz - z2)) < 1.8) bad = true;
         for (const l of M.ladders || []) if (Math.hypot(Math.max(x1 - l.x, 0, l.x - x2), Math.max(z1 - l.z, 0, l.z - z2)) < 1.5) bad = true;
         for (const p of pts) { const ddx = Math.max(x1 - p.x, 0, p.x - x2), ddz = Math.max(z1 - p.z, 0, p.z - z2); if (Math.hypot(ddx, ddz) < 1.1) { bad = true; break; } }
@@ -233,7 +251,8 @@
           if (!navBlocked[kk] && x > p.x1 - 0.9 && x < p.x2 + 0.9 && z > p.z1 - 0.9 && z < p.z2 + 0.9 && p.y2 > floor[kk] + 0.5) { navBlocked[kk] = 1; changed.push(kk); }
         }
         if (changed.length && !ok()) { for (const kk of changed) navBlocked[kk] = 0; props.pop(); continue; }
-        done = true; n++;
+        done = true; n++; if (o.grp !== undefined) placedGrp.add(o.grp);
+        if (o.ladder) { const sd = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] }[o.ladder]; M.addLadderRaw(cx + sd[0] * (w / 2 + 0.14), cz + sd[1] * (d / 2 + 0.14), -sd[0], -sd[1], base, base + dm[2]); }
       }
     }
     M.setCount = n;
@@ -420,8 +439,8 @@
       if (out.length >= maxN) break;
       const sd = sides(r).filter(x => x.ok >= x.n - 2).sort((a, b) => b.ok - a.ok);
       if (!sd.length) continue;
-      if (taken.some(t => Math.abs(t.i - r.i) < 8 && Math.abs(t.j - r.j) < 8)) continue;
-      const doorSide = sd[0], fl = doorSide.fl;
+      if (taken.some(t => Math.abs(t.i - r.i) < (def.houseGap || 6) && Math.abs(t.j - r.j) < (def.houseGap || 6))) continue;
+      const doorSide = sd[0], fl = doorSide.fl, fac = !!def.factory && r.w * r.d >= 30 && doorSide.n >= 6;
       // sala por dentro (piso na altura da rua da porta)
       fill(r.i + 1, r.j + 1, r.i + r.w - 2, r.j + r.d - 2, 'i', fl);
       // vão da porta no meio do lado escolhido
@@ -429,15 +448,18 @@
       const di = doorSide.s === 'W' ? r.i : doorSide.s === 'E' ? r.i + r.w - 1 : r.i + Math.max(1, Math.min(r.w - 2, mid));
       const dj = doorSide.s === 'N' ? r.j : doorSide.s === 'S' ? r.j + r.d - 1 : r.j + Math.max(1, Math.min(r.d - 2, mid));
       fill(di, dj, di, dj, 'i', fl);
-      out.push({ i: di, j: dj, side: doorSide.s });
+      const alongX = doorSide.s === 'N' || doorSide.s === 'S', di2 = di + (alongX ? 1 : 0), dj2 = dj + (alongX ? 0 : 1);
+      const wide = fac && (alongX ? di2 <= r.i + r.w - 2 : dj2 <= r.j + r.d - 2) && walk(di2 + (doorSide.s === 'W' ? -1 : doorSide.s === 'E' ? 1 : 0), dj2 + (doorSide.s === 'N' ? -1 : doorSide.s === 'S' ? 1 : 0));
+      if (wide) fill(di2, dj2, di2, dj2, 'i', fl);
+      out.push({ i: di, j: dj, side: doorSide.s, width: wide ? 2 : 1 });
       // janelas nos outros lados com rua (até 2 por lado)
       for (const x of sd.slice(1).concat(doorSide)) {
         if (Math.abs(x.fl - fl) > 0.01) continue;
-        const n = x.n; const picks = n >= 5 ? [1, n - 2] : [1];
+        const n = x.n; const picks = n >= 8 ? [1, Math.floor(n / 2), n - 2] : n >= 5 ? [1, n - 2] : [1];
         for (const q of picks) {
           const wi = x.s === 'W' ? r.i : x.s === 'E' ? r.i + r.w - 1 : r.i + q, wj = x.s === 'N' ? r.j : x.s === 'S' ? r.j + r.d - 1 : r.j + q;
           if (wi === di && wj === dj) continue;
-          if (x === doorSide && Math.abs((x.s === 'N' || x.s === 'S' ? wi - di : wj - dj)) < 2) continue;
+          if (x === doorSide && Math.abs((x.s === 'N' || x.s === 'S' ? wi - di : wj - dj)) < (fac ? 3 : 2) && (x.s === 'N' || x.s === 'S' ? wi - di : wj - dj) > -2) continue;
           const oi = wi + (x.s === 'W' ? -1 : x.s === 'E' ? 1 : 0), oj = wj + (x.s === 'N' ? -1 : x.s === 'S' ? 1 : 0);
           if (!walk(oi, oj)) continue;
           fill(wi, wj, wi, wj, 'j', fl + 1.0);

@@ -133,7 +133,7 @@
   };
   A.mk = (def, ammo, reserve, extra) => A.attach(Object.assign({ def, ammo, _r: reserve, silencer: false, burst: false, zoom: 0 }, extra || {}));
   // troca de carregador: entra o pente mais cheio; o que sobrou no pente velho volta para a reserva
-  A.swap = (inst) => { const sp = inst.spare; if (!sp.length) return false; sp.sort((a, b) => b - a); const m = sp.shift(); if (inst.ammo > 0) sp.push(inst.ammo); inst.ammo = m; return true; };
+  A.swap = (inst) => { const sp = inst.spare; if (!sp.length) return false; sp.sort((a, b) => b - a); inst.ammo = sp.shift(); return true; };   // o pente velho é descartado com as balas que sobraram
   A.refill = (inst) => { if (!inst || !inst.def.mag) return; inst.ammo = inst.def.mag; inst.reserve = inst.def.reserve || 0; };
   A.mags = (inst) => inst.spare.length;
 })();

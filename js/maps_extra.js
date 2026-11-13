@@ -23,9 +23,11 @@
     porto: {
       houses: 1, ladderCount: 2, furnDens: 0.16,
       furnLib: { inS: ['shelf', 'cabinet', 'lockers'], inD: ['workbench', 'forklift', 'compressor'], outS: ['barrelRow', 'gasCyl', 'valves'], outD: ['forklift', 'pallet', 'pallet:sacks', 'spool', 'generator'] },
-      setpieces: [['craneLeg', 5, 6, 0, { r: 0 }], ['craneLeg', 21, 6, 0, { r: 0 }], ['forklift', 12, 19, 90], ['forklift', 31, 19, 0, { color: 'blue' }], ['barrelRow', 16, 5, 0], ['barrelRow', 7, 17, 0], ['pallet', 28, 19, 0]],
+      setpieces: [['craneLeg', 5, 6, 0, { r: 0, ladder: 'S' }], ['craneLeg', 21, 6, 0, { r: 0, ladder: 'S', ox: 0.6 }], ['forklift', 12, 19, 90], ['forklift', 31, 19, 0, { color: 'blue' }], ['barrelRow', 16, 5, 0], ['barrelRow', 7, 17, 0], ['pallet', 28, 19, 0]],
       decor(d, c, S) {
-        d.box(50, 0.9, 1.1, 40.5, 10.0, c(6), 0xd8a72a, 'metal'); d.box(2.4, 1.0, 1.6, 30, 9.0, c(6), 0x3a3e44, 'metal'); d.cyl(0.06, 5, 30, 6.0, c(6), 0x222222); d.box(1.0, 0.8, 1.0, 30, 3.3, c(6), 0xd8a72a, 'metal');
+        d.box(50.6, 0.9, 1.1, 40.8, 13.6, c(6), 0xd8a72a, 'metal'); d.box(2.4, 1.0, 3.4, 30, 12.6, c(6) + 1.2, 0x3a3e44, 'metal'); d.cyl(0.06, 6.4, 30, 9.0, c(6) + 2.5, 0x222222); d.box(1.0, 0.8, 1.0, 30, 5.4, c(6) + 2.5, 0xd8a72a, 'metal');
+        for (const lx of [16.5, 65.1]) for (const sx of [-0.7, 0.7]) for (const sz of [-0.7, 0.7]) d.box(0.22, 4.1, 0.22, lx + sx, 11.5, c(6) + sz, 0xd8a72a, 'metal');
+        d.sign('GUINDASTE 2 · ACESSO RESTRITO', '#f0d020', '#111', null, 16.5, 4.4, c(6) + 1.0, 0, 1.6, 0.5);
         d.cyl(2.2, 18, c(10), 9, c(1), 0xf0ece4, 'plaster'); d.cyl(2.8, 2.2, c(10), 19, c(1), 0xb02a2a, 'plaster'); d.glow(c(10), 19.5, c(1) + 1, 0xfff0a0, 1.2, 40);
         d.cyl(4.5, 3, c(38), 9.5, c(34), 0x8a2a24, 'corrugated'); d.cyl(0.5, 8, c(38), 16, c(34), 0x6a6a6a);
       }
@@ -132,10 +134,20 @@
     esgoto: { crateTex: 'metal', crateColor: 0x4a6a4a, barrelColor: 0x6a9a2a },
     pontes: { crateTex: 'wood', crateColor: 0xc8a070, barrelColor: 0x8a5a3a }
   };
+  // mais casas/fábricas com porta e janelas funcionando, peças espalhadas e passarelas (guindastes)
+  const EXTRA = {
+    sirocco: { houses: 6 }, nevada: { houses: 6 }, colonial: { houses: 6 }, templo: { houses: 4 }, fortaleza: { houses: 4 }, bairro: { houses: 7 }, pontes: { houses: 6 },
+    porto: { houses: 5, factory: true, platforms: [{ x1: 15.6, x2: 66.0, z1: 18.7, z2: 20.3, y: 9.5, th: 0.2, rail: true }] },
+    ferro: { houses: 5, factory: true }, fundicao: { houses: 6, factory: true }, neon: { houses: 5, factory: true }, usina: { houses: 0 },
+    ruinas: { houses: 4, scatter: { columnBroken: 9, column: 4, urn: 8, brazier: 4, statue: 3, obelisk: 2, bench: 3, planter: 4, well: 1 } },
+    esgoto: { scatter: { barrelRow: 6, valves: 6, pump: 3, tank: 3, gasCyl: 5, bigPipe: 5, panel: 4, cabinet: 3 } }
+  };
+  EXTRA.pontes = Object.assign(EXTRA.pontes, { scatter: { stall: 6, cart: 5, barrelRow: 5, well: 2, planter: 8, bench: 6, statue: 2, hay: 4, firewood: 4, fountain: 1, urn: 6 } });
   const TOWER = { sirocco: 'stone', porto: 'metal', nevada: 'ice', colonial: 'wood', usina: 'metal', ferro: 'metal', templo: 'stone', fortaleza: 'stone', neon: 'metal', fundicao: 'metal', bairro: 'wood', ruinas: 'ruin', esgoto: 'metal', pontes: 'wood' };
   for (const id in X) {
     const def = M.defs[id], ex = X[id]; if (!def) continue;
     for (const k of ['houses', 'ladderCount', 'glass', 'furnDens', 'furnLib', 'setpieces', 'carve2', 'pipeCount', 'towerCount', 'towerStyle', 'glassColor', 'ladders']) if (ex[k] !== undefined) def[k] = ex[k];
+    if (EXTRA[id]) for (const k in EXTRA[id]) def[k] = EXTRA[id][k];
     if (COVER[id]) def.theme = Object.assign({}, def.theme, COVER[id]);
     if (TOWER[id]) def.towerStyle = TOWER[id];
     if (ex.theme) { const th = Object.assign({}, def.theme, ex.theme); th.mats = Object.assign({}, (def.theme || {}).mats || {}, ex.theme.mats || {}); def.theme = th; }

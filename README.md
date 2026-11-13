@@ -15,7 +15,9 @@ Mapas, agentes, armas, facas e acabamentos são **originais**. O jogo é inspira
 - **Lugares altos e passagens:** torres de vigia (escada de mão) e bases de concreto (degraus) em todos os mapas, dutos/bueiros que dá para atravessar, tubulações enterráveis através das paredes e, na Usina, o bombsite A num convés de aço **sobre** o salão do reator (B), com escada ligando os dois.
 - **Caixas e barris com a cara de cada mapa** (concreto na usina, pedra no templo, contêiner no porto…).
 - **Fumaça:** tiros abrem um túnel largo por ~5 s e a granada HE varre a fumaça por ~10 s; depois ela volta devagar.
-- **Munição por carregador:** a reserva é uma lista de pentes (trocar de pente guarda as balas que sobraram), o HUD mostra os pentes e tudo é reabastecido a cada rodada.
+- **Munição por carregador:** a reserva é uma lista de pentes; ao recarregar o pente velho é descartado com as balas que sobraram. O HUD mostra os pentes e tudo é reabastecido a cada rodada.
+- **Som de tiro realista:** estalo, corpo, pancada grave e eco, com timbre próprio por arma, atraso e abafamento pela distância.
+- **Guindastes do porto** com escada e passarela no alto; mais casas e fábricas com porta aberta na parede e janelas que abrem e quebram.
 - **Agentes e armas:** 42 agentes, 45 armas com padrão de recuo e penetração, 14 estilos de faca (karambit, borboleta, baionetas, bowie, canivete, tantō, kukri e outros) e 40 acabamentos no Arsenal.
 - **Bots:** com dificuldade ajustável, que usam portas e escadas de mão.
 - **Online:** sala com código de 5 letras, de navegador para navegador (PeerJS), com bots completando os times. Se a conexão direta não fecha (redes com NAT restritivo, como dados móveis), cai sozinha numa retransmissão por MQTT.
