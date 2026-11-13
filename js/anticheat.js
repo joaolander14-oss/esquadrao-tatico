@@ -31,6 +31,12 @@
     bhop: ['Sequências de pulos perfeitos', 5, 20],
     hs: ['Taxa de tiros na cabeça improvável', 15, 15],
     aim: ['Precisão sobre-humana (acertos e cabeças acima do possível)', 35, 85],
+    rate: ['Cadência de tiro acima do limite da arma', 20, 60],
+    noclip: ['Atravessando paredes ou voando (noclip)', 35, 100],
+    jump: ['Salto ou gravidade fora da física normal', 30, 60],
+    fast: ['Plantar ou desarmar mais rápido que o possível', 50, 100],
+    regen: ['Vida ou colete aumentando sem motivo', 25, 100],
+    nades: ['Granadas que não acabam', 25, 60],
     aa: ['Pose transmitida diverge da mira (anti-aim)', 10, 40],
     lag: ['Posição transmitida atrasada (fake lag)', 10, 30]
   };
@@ -48,7 +54,7 @@
     return s;
   }
   function flag(a, key, n, note) {
-    const s = S(a), d = DET[key];
+    const s = S(a), d = DET[key]; if (s.watch) { n = (n || 1) * 1.5; if (note) s.watch.log.push(Math.round(Gm().time) + ' s · ' + d[0] + ': ' + note); }
     s.ev[key] = (s.ev[key] || 0) + (n || 1);
     s.pts[key] = Math.min(d[2], (s.pts[key] || 0) + d[1] * (n || 1));
     if (note) s.lastNote = s.lastNote || {}, s.lastNote[key] = note;
@@ -59,7 +65,8 @@
   AC.level = sc => sc >= 100 ? 'Trapaça confirmada' : sc >= 70 ? 'Muito suspeito' : sc >= 40 ? 'Suspeito' : 'Confiável';
   const mode = () => (Gm().settings.anticheat || 'ativo');
   AC.monitorBots = false;                       // teste de falsos positivos: analisa os bots como jogadores
-  const mon = a => !Gm().clientMode && (a.isHuman || !!a.remote || AC.monitorBots);
+  const mon = a => !Gm().clientMode && (a.isHuman || !!a.remote || AC.monitorBots || !!(st.get(a) && st.get(a).watch));
+  const rw = (a, k) => { const w = st.get(a) && st.get(a).watch; return !!(w && (w.reasons.has(k) || w.reasons.has('abuse'))); };
 
   // online: o anfitrião mede a velocidade REAL do jogador remoto (o cliente manda a própria velocidade, que pode mentir)
   AC.netMove = (a, p, now) => {
@@ -77,6 +84,45 @@
     }
   };
   AC.state = a => S(a);
+  AC.nade = a => { if (mon(a)) S(a).nb = a.inv.grenades.length; };
+  AC.plantDone = (a, dur, kind) => {
+    if (!mon(a)) return;
+    if (kind === 'plant' && dur < 3.0) flag(a, 'fast', 1, `plantou em ${dur.toFixed(1)} s (mín. 3,2 s)`);
+    if (kind === 'defuse' && dur < (a.kit ? 4.3 : 8.6)) flag(a, 'fast', 1, `desarmou em ${dur.toFixed(1)} s (mín. ${a.kit ? 5 : 10} s)`);
+  };
+  // ---------------- Denúncias ----------------
+  AC.REASONS = [['aim', 'Mira automática (aimbot)'], ['wall', 'Vê através das paredes (wallhack)'], ['trigger', 'Gatilho automático (triggerbot)'], ['speed', 'Velocidade ou teleporte'], ['god', 'Vida ou munição infinitas'], ['abuse', 'Outro / comportamento suspeito']];
+  AC.denounce = (rep, tgt, why, note) => {
+    const g = Gm();
+    if (!rep || !tgt || rep === tgt || g.clientMode || !g.agents) return { ok: false, msg: 'Denúncia inválida.' };
+    const s = S(tgt), rs = S(rep);
+    s.reports = s.reports || [];
+    if (s.reports.some(r => r.by === rep.name)) return { ok: false, msg: 'Você já denunciou ' + tgt.name + ' nesta partida.' };
+    if ((rs.sent || 0) >= 3) return { ok: false, msg: 'Limite de 3 denúncias por partida.' };
+    rs.sent = (rs.sent || 0) + 1;
+    if (!AC.REASONS.some(r => r[0] === why)) why = 'abuse';
+    s.reports.push({ by: rep.name, why, note: String(note || '').replace(/[<>&"]/g, '').slice(0, 80), t: g.time });
+    const w = s.watch || (s.watch = { since: g.time, liveT: 0, reasons: new Set(), reporters: [], verdict: null, done: false, log: [] });
+    w.reasons.add(why); if (!w.reporters.includes(rep)) w.reporters.push(rep);
+    if (w.done) { w.done = false; w.liveT = 0; }        // nova denúncia reabre a investigação
+    return { ok: true, msg: `Denúncia enviada. O Guardião vai investigar ${tgt.name} com atenção redobrada (análise de ~75 s de jogo).` };
+  };
+  function tell(rep, txt) {
+    if (!rep) return;
+    if (rep.isHuman) { toast(txt); if (G.HUD && G.HUD.centerMsg) G.HUD.centerMsg(txt, 5); }
+    else if (rep.remote && G.MP && G.MP.toAgent) G.MP.toAgent(rep, { t: 'msg', s: txt, d: 6 });
+  }
+  AC.finalize = () => { for (const a of (Gm().agents || [])) { const w = st.get(a) && st.get(a).watch; if (w && !w.done) verdict(a); } };
+  function verdict(a) {
+    const s = S(a), w = s.watch; if (!w || w.done) return;
+    w.done = true;
+    if (w.liveT < 12 && AC.score(a) < 40) { w.verdict = { lvl: 'short', txt: `Investigação de ${a.name}: a partida acabou cedo demais para uma conclusão (${Math.round(w.liveT)} s analisados).` }; for (const r of w.reporters) tell(r, w.verdict.txt); return; }
+    const sc = AC.score(a), top = AC.reasons(a).slice(0, 3).map(r => r.label);
+    if (sc >= 100) { w.verdict = { lvl: 'confirmed', txt: `Investigação concluída: trapaça confirmada em ${a.name} (${top.join('; ')}).` }; }
+    else if (sc >= 40) { w.verdict = { lvl: 'suspect', txt: `Investigação: ${a.name} tem sinais suspeitos (${top.join('; ')}) e segue sob revisão.` }; }
+    else w.verdict = { lvl: 'clean', txt: `Investigação concluída: nenhuma irregularidade encontrada em ${a.name}. Obrigado pela denúncia.` };
+    for (const r of w.reporters) tell(r, w.verdict.txt);
+  }
   AC.reset = () => { st.clear(); warned = {}; banned = false; lastVis = 0; hideBan(); for (const a of (Gm().agents || [])) S(a); };
 
   // ---------------- Tiros ----------------
@@ -85,6 +131,9 @@
     if (!a.alive) return;
     const s = S(a), now = Gm().time;
     const firstOfBurst = now - s.lastShot > 0.35;
+    { const iv = 60 / (def.rpm || 60), dtS = now - s.lastShot;
+      if (mon(a) && def.cat !== 'knife' && !(a.burstLeft > 0) && s.prevDef === def && dtS > 0.002 && dtS < iv * 0.68) { s.fastN = (s.fastN || 0) + 1; if (s.fastN >= 5) { s.fastN = 0; flag(a, 'rate', 1, `${Math.round(dtS * 1000)} ms entre tiros (mín. ${Math.round(iv * 1000)} ms)`); } } else if (dtS >= iv * 0.9) s.fastN = Math.max(0, (s.fastN || 0) - 1);
+      s.prevDef = def; }
     s.shots++; s.lastShot = now; s.pend = (s.pend || 0) + 1;
     if (def.pellets === 1 && def.cat !== 'knife') s.pShots = (s.pShots || 0) + 1;
     if (!mon(a)) return;
@@ -192,6 +241,20 @@
         const onT = onEnemy(a, a.eye(), U.dirFrom(a.yaw, a.pitch, new THREE.Vector3()));
         if (onT) { if (s.onTarget < 0) s.onTarget = now; } else { s.onTarget = -1; s.onTargetShot = false; }
       }
+      // noclip, salto/gravidade, regeneração
+      if (mon(a)) {
+        if (!a.onLadder && M.pointSolid(a.pos.x, a.pos.y + 0.9, a.pos.z)) { s.clipT = (s.clipT || 0) + dt; if (s.clipT > 0.5) { s.clipT = 0; flag(a, 'noclip', 1, 'dentro de parede ou obstáculo'); } } else s.clipT = Math.max(0, (s.clipT || 0) - dt);
+        if (!a.onGround && !a.onLadder) {
+          if (a.vel.y > 8.9 && g.phase === 'live') { s.jmpT = (s.jmpT || 0) + dt; if (s.jmpT > 0.05) { s.jmpT = -1; flag(a, 'jump', 1, `subida ${a.vel.y.toFixed(1)} m/s (normal até 7,1)`); } }
+          if (s.pvy !== undefined && a.vel.y < -2 && s.pvy < -2 && dt > 0.001) { const acc = (a.vel.y - s.pvy) / dt; if (acc > -13) { s.gravT = (s.gravT || 0) + dt; if (s.gravT > 0.45) { s.gravT = 0; flag(a, 'jump', 1, `queda com aceleração ${acc.toFixed(1)} m/s² (normal 20,3)`); } } }
+        } else { s.gravT = Math.max(0, (s.gravT || 0) - dt); if (s.jmpT < 0) s.jmpT = 0; }
+        s.pvy = a.onGround ? undefined : a.vel.y;
+        if (g.phase === 'live' && s.hpPrev !== undefined && (a.hp > s.hpPrev + 0.01 || a.armor > s.armPrev + 0.01) && a.alive && now > s.moneyOK + 1) { s.regT = (s.regT || 0) + dt; if (s.regT > 0.6) { s.regT = 0; flag(a, 'regen', 1, `vida ${Math.round(s.hpPrev)} → ${Math.round(a.hp)}`); } }
+        s.hpPrev = a.hp; s.armPrev = a.armor;
+        if (s.nb !== undefined) { if (a.inv.grenades.length >= s.nb) flag(a, 'nades', 1, 'a granada lançada não saiu do inventário'); s.nb = undefined; }
+      }
+      // investigação: veredito depois de ~75 s de jogo
+      if (s.watch && !s.watch.done && g.phase === 'live' && a.alive) { s.watch.liveT += dt; if (s.watch.liveT >= 75) verdict(a); }
       // munição: recarga instantânea / infinita
       const w = a.weapon();
       if (w && w.def && w.def.mag) {
@@ -208,7 +271,7 @@
       if (!mon(a)) continue;
       // velocidade no chão
       const maxS = G.PHYS.RUN * ((a.wdef().speed || 250) / 250);
-      if (a.onGround) { s.groundT += dt; if (a.speed2d() > maxS * 1.22 && s.groundT > 0.15) { s.speedT += dt; if (s.speedT > 1) { s.speedT = 0; flag(a, 'speed', 1, `${a.speed2d().toFixed(1)} m/s (máx ${maxS.toFixed(1)})`); } } }
+      if (a.onGround) { s.groundT += dt; if (a.speed2d() > maxS * (rw(a, 'speed') ? 1.1 : 1.22) && s.groundT > 0.15) { s.speedT += dt; if (s.speedT > 1) { s.speedT = 0; flag(a, 'speed', 1, `${a.speed2d().toFixed(1)} m/s (máx ${maxS.toFixed(1)})`); } } }
       // pulos perfeitos em sequência
       if (s.wasGround && !a.onGround && a.vel.y > 3) { if (s.groundT <= dt * 1.5 && !a.jumpBuffered) s.jumpChain++; else s.jumpChain = 1; if (s.jumpChain === 6 || s.jumpChain === 12) flag(a, 'bhop'); }
       if (!a.onGround) s.groundT = 0;
@@ -255,12 +318,12 @@
       }
       if (!mon(a)) continue;
       // avaliações estatísticas
-      if (s.reactions.length >= 6) { const m = median(s.reactions); setPts(a, 'reaction', m < 0.09 ? 40 : m < 0.14 ? 30 : 0); }
+      if (s.reactions.length >= (rw(a, 'aim') ? 4 : 6)) { const m = median(s.reactions); setPts(a, 'reaction', m < 0.09 ? 40 : m < (rw(a, 'aim') ? 0.18 : 0.14) ? 30 : 0); }
       const trg = s.triggers.filter(x => x < 1.5);
-      if (trg.length >= 8) { const m = median(trg), fast = trg.filter(x => x < 0.05).length / trg.length; setPts(a, 'trigger', m < 0.035 && fast > 0.7 ? 30 : m < 0.06 && fast > 0.6 ? 12 : 0); }
+      if (trg.length >= (rw(a, 'trigger') ? 4 : 8)) { const m = median(trg), fast = trg.filter(x => x < 0.05).length / trg.length; setPts(a, 'trigger', m < 0.035 && fast > 0.7 ? 30 : m < 0.06 && fast > 0.6 ? 12 : 0); }
       // precisão estatística (armas de tiro único): humanos erram bastante e raramente acertam quase só cabeças
-      if ((s.pShots || 0) >= 30) { const acc = (s.pHits || 0) / s.pShots, hsr = s.pHits ? (s.pHs || 0) / s.pHits : 0; setPts(a, 'aim', s.pShots >= 60 && acc > 0.9 && hsr > 0.75 ? 85 : acc > 0.8 && hsr > 0.65 ? 60 : acc > 0.7 && hsr > 0.55 ? 35 : 0); }
-      if (s.hiddenOpp > 8 && s.hiddenEnemies.size >= 2) { const r = s.hiddenAim / s.hiddenOpp; setPts(a, 'hidden', r > 0.35 ? 40 : r > 0.2 ? 25 : 0); }
+      if ((s.pShots || 0) >= 30) { const acc = (s.pHits || 0) / s.pShots, hsr = s.pHits ? (s.pHs || 0) / s.pHits : 0; const d = rw(a, 'aim') ? 0.1 : 0; setPts(a, 'aim', s.pShots >= 60 && acc > 0.9 - d && hsr > 0.75 - d ? 85 : acc > 0.8 - d && hsr > 0.65 - d ? 60 : acc > 0.7 - d && hsr > 0.55 - d ? 35 : 0); }
+      if (s.hiddenOpp > (rw(a, 'wall') ? 4 : 8) && s.hiddenEnemies.size >= (rw(a, 'wall') ? 1 : 2)) { const r = s.hiddenAim / s.hiddenOpp; setPts(a, 'hidden', r > (rw(a, 'wall') ? 0.2 : 0.35) ? 40 : r > (rw(a, 'wall') ? 0.1 : 0.2) ? 25 : 0); }
     }
   };
   function countHidden(a) { let n = 0; for (const e of Gm().agents) if (e.alive && e.team !== a.team && e.pos.distanceTo(a.pos) < 45) n++; return n; }
@@ -269,6 +332,7 @@
   function check(a) {
     if (Gm().clientMode) return;
     // jogador online: o anfitrião remove da partida
+    if (S(a).watch && !S(a).watch.done && AC.score(a) >= 100) verdict(a);
     if (a.remote) { if (AC.score(a) >= 100 && mode() === 'ativo' && !a.acKicked && G.MP) { a.acKicked = true; G.MP.kickCheater(a, AC.reasons(a).map(r => r.label)); } return; }
     if (!a.isHuman || banned) return;
     const sc = AC.score(a), m = mode();
@@ -309,6 +373,13 @@
     el.classList.remove('hidden');
     renderReport();
   };
+  function denunciasHtml() {
+    const g = Gm(), list = (g.agents || []).filter(a => S(a).reports && S(a).reports.length);
+    if (!list.length) return '';
+    const lab = k => (AC.REASONS.find(r => r[0] === k) || [0, k])[1];
+    return '<h3>Denúncias na partida</h3><div class="sig">' + list.map(a => { const s = S(a), w = s.watch;
+      return `<div><span>${a.name}: ${s.reports.map(r => lab(r.why) + ' (por ' + r.by + ')').join('; ')}</span><em>${w && w.verdict ? w.verdict.txt : 'em investigação · ' + Math.round(w ? w.liveT : 0) + ' / 75 s'}${w && w.log.length ? ' · ' + w.log.slice(-2).join(' | ') : ''}</em><b>${Math.round(AC.score(a))}</b></div>`; }).join('') + '</div>';
+  }
   function renderReport() {
     const el = $('acReport'); if (!el || el.classList.contains('hidden')) return;
     const g = Gm(); if (!g.agents) return;
@@ -323,6 +394,7 @@
     const h = g.human, rs = h ? AC.reasons(h) : [];
     el.innerHTML = `<div class="box"><header><b>⛨ GUARDIÃO</b><span>Relatório da partida · F9 fecha · modo: ${({ ativo: 'Ativo (remove da partida)', relatorio: 'Só relatório', off: 'Desligado' })[mode()]}</span></header>
       <table><tr><th>Jogador</th><th>Tiros</th><th>Precisão</th><th>Cabeça</th><th>Reação (mediana)</th><th>Gatilho (mediana)</th><th>Mira em escondidos</th><th>Dispersão real/esperada</th><th>Acertos em parede</th><th>Suspeita</th></tr>${rows}</table>
+      ${denunciasHtml()}
       <h3>Sinais registrados para você: ${h ? AC.level(AC.score(h)) : ''}</h3>
       <div class="sig">${rs.length ? rs.map(r => `<div><span>${r.label}</span><em>${r.ev} evento(s)${r.note ? ' · ' + r.note : ''}</em><b>+${Math.round(r.pts)}</b></div>`).join('') : '<p>Nenhum sinal anormal. Bots aparecem acima como referência de jogo legítimo.</p>'}</div></div>`;
   }

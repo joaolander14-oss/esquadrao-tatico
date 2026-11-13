@@ -19,8 +19,8 @@
       noFlash: false, noSmoke: false, noScope: false, noVisRecoil: false, tracers: false, tracerCol: '#7cf3ff', dmgNums: false, indicators: true,
       fov: 0, vmFov: 60, third: false, thirdDist: 2.6 },
     misc: { bhop: false, autostrafe: false, edgeJump: false, fastStop: false, infDuck: false, autoPistol: false, revealMoney: false, bombTimer: false,
-      killsay: false, clantag: false, hitsound: '', watermark: true, autoBuy: false, autoBuyPreset: 'rifle' },
-    srv: { god: false, ammo: false, noReload: false, money: false, onehit: false, speed: 1 },
+      killsay: false, clantag: false, noRecoil: false, hitsound: '', watermark: true, autoBuy: false, autoBuyPreset: 'rifle' },
+    srv: { god: false, ammo: false, noReload: false, money: false, onehit: false, speed: 1, fastPlant: false, fastDefuse: false, infNades: false, regen: false, infArmor: false, freezeBots: false, noclip: false, jump: 1, gravity: 1, fireRate: 1, dmgMul: 1 },
     skins: {},
     script: "// API: ET (jogo), G (tudo), Ch (este painel)\n// Exemplo: matar todos os inimigos vivos\nfor (const a of ET.agents) if (a.alive && a.team !== ET.human.team) a.applyDamage(999, 1, 'head', ET.human, G.W.kalash);\n"
   };
@@ -182,10 +182,14 @@
   // chamado pelo combat.fireShot do jogador
   Ch.shotDir = (a, pr) => {
     if (Ch.aimOverride) return Ch.aimOverride;        // ragebot: mira perfeita e sem recuo
+    if (cfg.misc.noRecoil) return { yaw: a.yaw, pitch: a.pitch };
     const rcs = cfg.legit.rcs / 100;
     if (rcs > 0) return { yaw: a.yaw - pr[0] * U.D2R * (1 - rcs), pitch: a.pitch + pr[1] * U.D2R * (1 - rcs) };
     return null;
   };
+  Ch.plantTime = () => cfg.srv.fastPlant ? 0.4 : 3.2;
+  Ch.defuseTime = kit => cfg.srv.fastDefuse ? 0.5 : (kit ? 5 : 10);
+  Ch.rateDiv = () => Math.max(1, cfg.srv.fireRate || 1);
   Ch.spreadMul = () => (cfg.rage.on && cfg.rage.noSpread) ? 0 : 1;
   Ch.autowall = () => cfg.rage.on && cfg.rage.autowall;
 
@@ -210,7 +214,7 @@
   Ch.afterInput = (dt, frozen) => {
     const g = Gm(), h = g.human, Mi = cfg.misc;
     if (!g.human) return;
-    h.speedMul = cfg.srv.speed;
+    h.speedMul = cfg.srv.speed; h.jumpMul = cfg.srv.jump || 1; h.gravMul = cfg.srv.gravity || 1;
     h.crouchSpeed = Mi.infDuck ? 60 : 6;
     h.airCap = Mi.autostrafe ? 1.9 : undefined;
     if (!h.alive || Ch.open) { if (Ch.open) { const i = h.input; i.fwd = i.side = 0; i.fire = i.fire2 = i.jump = false; } return; }
@@ -248,6 +252,17 @@
     }
     // servidor
     if (S.money) h.money = 16000;
+    if (S.regen && h.alive && h.hp < 100) h.hp = Math.min(100, h.hp + 14 * dt);
+    if (S.infArmor && h.alive) { h.armor = 100; h.helmet = true; }
+    if (S.infNades && h.alive) for (const id of ['he', 'flash', 'smoke']) if (!h.inv.grenades.includes(id)) h.inv.grenades.push(id);
+    // noclip: voa e atravessa paredes (a física normal roda antes; aqui a posição é sobrescrita)
+    if (S.noclip && h.alive && !Ch.open) {
+      if (!Ch._nc) Ch._nc = h.pos.clone();
+      const sp = 9 * (S.speed || 1), f = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0), sd = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0), up = (keys.Space ? 1 : 0) - ((keys.ControlLeft || keys.KeyC) ? 1 : 0);
+      const dir = U.dirFrom(h.yaw, h.pitch, new THREE.Vector3());
+      Ch._nc.addScaledVector(dir, f * sp * dt); Ch._nc.x += Math.cos(h.yaw) * sd * sp * dt; Ch._nc.z -= Math.sin(h.yaw) * sd * sp * dt; Ch._nc.y += up * sp * dt;
+      h.pos.copy(Ch._nc); h.vel.set(0, 0, 0); h.onGround = false;
+    } else if (Ch._nc) { Ch._nc = null; let n = 0; while (M.pointSolid(h.pos.x, h.pos.y + 0.9, h.pos.z) && n++ < 80) h.pos.y += 0.5; }
     for (const slot of ['primary', 'secondary']) {
       const w = h.inv[slot]; if (!w || !w.def.mag) continue;
       if (S.ammo) { w.ammo = Math.max(w.ammo, w.def.mag); w.reserve = Math.max(w.reserve, w.def.reserve); }
@@ -619,7 +634,11 @@
       { name: 'Geral', items: [chk('misc.autoPistol', 'Pistola automática'), chk('misc.revealMoney', 'Revelar dinheiro inimigo'), chk('misc.bombTimer', 'Cronômetro da bomba'), chk('misc.killsay', 'Kill say'), chk('misc.clantag', 'Clan tag animada'),
         sel('misc.hitsound', 'Som de acerto', [['', 'Padrão'], ['sino', 'Sino'], ['metal', 'Metal'], ['bolha', 'Bolha'], ['clique', 'Clique']]), chk('misc.watermark', 'Marca d\'água')] },
       { name: 'Compra automática', items: [chk('misc.autoBuy', 'Ativar'), sel('misc.autoBuyPreset', 'Pacote', [['rifle', 'Rifle completo'], ['awp', 'Sniper pesada'], ['smg', 'SMG + colete'], ['pistola', 'Pistola pesada'], ['granadas', 'Só granadas']])] },
-      { name: 'Servidor (só offline)', items: [chk('srv.god', 'Modo deus'), chk('srv.ammo', 'Munição infinita'), chk('srv.noReload', 'Recarga instantânea'), chk('srv.money', 'Dinheiro infinito'), chk('srv.onehit', 'Matar com 1 tiro'), sld('srv.speed', 'Velocidade', 0.5, 3, 0.1, '×')] }] },
+      { name: 'Servidor (só offline)', items: [chk('srv.god', 'Modo deus'), chk('srv.ammo', 'Munição infinita'), chk('srv.noReload', 'Recarga instantânea'), chk('srv.money', 'Dinheiro infinito'), chk('srv.onehit', 'Matar com 1 tiro'), sld('srv.speed', 'Velocidade', 0.5, 3, 0.1, '×'),
+        chk('srv.fastPlant', 'Plantar a bomba instantâneo'), chk('srv.fastDefuse', 'Desarmar instantâneo'), chk('srv.infNades', 'Granadas infinitas'), chk('srv.regen', 'Regeneração de vida'),
+        chk('srv.infArmor', 'Colete e capacete infinitos'), chk('srv.freezeBots', 'Congelar os bots'), chk('srv.noclip', 'Noclip (voar e atravessar paredes: WASD, Espaço sobe, Ctrl desce)')] },
+      { name: 'Física e armas (só offline)', items: [sld('srv.jump', 'Força do pulo', 1, 3, 0.1, '×'), sld('srv.gravity', 'Gravidade', 0.2, 2, 0.1, '×'), sld('srv.fireRate', 'Cadência de tiro', 1, 6, 0.5, '×'),
+        sld('srv.dmgMul', 'Multiplicador de dano', 1, 10, 0.5, '×'), chk('misc.noRecoil', 'Sem recuo (remove o padrão de recuo)')] }] },
     { id: 'skins', name: 'Skins', icon: '◆', custom: renderSkins },
     { id: 'cfg', name: 'Config', icon: '⚙', custom: renderConfig },
     { id: 'lua', name: 'Scripts', icon: '{}', custom: renderScripts }

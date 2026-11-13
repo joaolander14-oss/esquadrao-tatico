@@ -3,12 +3,12 @@
   const A = G.Audio = {};
   let ctx = null, master = null, noiseBuf = null, rev = null;
   const lp = { x: 0, y: 0, z: 0 };
-  A.volume = 0.7;
+  A.volume = 0.7; A.gunVol = 3;
   A.init = () => {
     if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
     try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
     master = ctx.createGain(); master.gain.value = A.volume; master.connect(ctx.destination);
-    const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
+    const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -9; comp.knee.value = 10; comp.ratio.value = 14; comp.attack.value = 0.002; comp.release.value = 0.18;
     master.disconnect(); master.connect(comp); comp.connect(ctx.destination);
     noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
     const d = noiseBuf.getChannelData(0);
@@ -70,7 +70,7 @@
     if (!ctx) return;
     const dist = (!isLocal && pos) ? Math.hypot(pos.x - lp.x, pos.y - lp.y, pos.z - lp.z) : 0;
     const t = ctx.currentTime + Math.min(0.45, dist / 343);
-    const d0 = out(isLocal ? null : pos, isLocal ? 0.6 : 1.0);
+    const d0 = out(isLocal ? null : pos, (isLocal ? 0.6 : 1.0) * (silenced ? Math.min(A.gunVol, 1.5) : A.gunVol));
     const d = ctx.createBiquadFilter(); d.type = 'lowpass'; d.frequency.value = Math.max(900, 15000 / (1 + dist / 22)); d.connect(d0);
     const cat = def.cat;
     if (def.id === 'taser') { noise(d, t, 0.3, 'highpass', 3000, 1, 0.002, 0.25, 0.5); tone(d, t, 'sawtooth', 120, 90, 0.25, 0.2); return; }
@@ -88,6 +88,9 @@
     tone(d, t, 'triangle', p.th[0] * 2 * sig, p.th[1] * 2, p.th[2] * 0.5, 0.22 * p.vol, 0.001);
     if (def.pellets > 1) { noise(d, t + 0.03, 0.3, 'bandpass', 480, 0.7, 0.004, 0.22, 0.5); tone(d, t + 0.02, 'sine', 70, 35, 0.2, 0.35); }
     if (cat === 'sniper') { noise(d, t + 0.2, 0.5, 'lowpass', 700, 0.5, 0.02, 0.35, 0.18); noise(d, t + 0.38, 0.5, 'lowpass', 500, 0.5, 0.03, 0.4, 0.1); }   // eco distante
+    // cartucho caindo no chão (mais um som de tiro) e o estalo da ação da arma
+    if (cat !== 'sniper') tone(d, t + 0.28 + Math.random() * 0.08, 'triangle', 5200 * sig, 3800, 0.09, 0.07 * p.vol);
+    if (cat === 'heavy') { tone(d, t + 0.55, 'square', 700, 480, 0.05, 0.08); noise(d, t + 0.55, 0.06, 'bandpass', 1800, 2, 0.002, 0.05, 0.3); }
     if (rev) { const send = ctx.createGain(); send.gain.value = p.wet * (isLocal ? 0.55 : Math.max(0.12, 1 - dist / 130)) * 0.7; noise(send, t, 0.4, 'lowpass', 2600, 0.6, 0.002, 0.16, 0.8); send.connect(rev); }
   };
   A.step = (pos, vol, surface) => {

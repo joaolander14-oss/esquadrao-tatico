@@ -195,6 +195,7 @@
   B.update = (a, dt, now, frozen) => {
     const ai = a.ai; if (!ai) return;
     const inp = a.input;
+    if (G.Cheats && G.Cheats.cfg.srv.freezeBots) { inp.fire = inp.fire2 = inp.jump = inp.reload = inp.use = false; inp.fwd = inp.side = 0; return; }
     inp.fire = false; inp.fire2 = false; inp.jump = false; inp.reload = false; inp.use = false; inp.crouch = false; inp.walk = false;
     inp.fwd = 0; inp.side = 0;
     a.recoilComp = P().comp;

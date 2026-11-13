@@ -183,7 +183,7 @@
       if (this.onGround && canJump && (edge || this.jumpBuf > 0 || (inp.jump && this.autoHop))) {
         // pulo perfeito: sem atrito nem limite de velocidade no quadro do pulo (bunny hop)
         this.jumpBuffered = !edge || this.autoHop; this.jumpBuf = 0;
-        this.vel.y = JUMP_V; this.onGround = false;
+        this.vel.y = JUMP_V * (this.jumpMul || 1); this.onGround = false;
         if (this.onJump) this.onJump();
       }
       if (this.onGround) {
@@ -207,7 +207,7 @@
         const spA = this.speed2d(), cap = RUN * 2.2 * (this.speedMul || 1);
         if (spA > cap) { this.vel.x *= cap / spA; this.vel.z *= cap / spA; }
       }
-      this.vel.y -= GRAV * dt;
+      this.vel.y -= GRAV * (this.gravMul || 1) * dt;
       this.move(dt);
     }
     move(dt) {

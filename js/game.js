@@ -4,7 +4,7 @@
   const U = G.U, M = G.Map, C = G.Combat, H = G.HUD;
   const $ = id => document.getElementById(id);
   const NAMES = ['Faísca', 'Lobo', 'Tatu', 'Corvo', 'Ferro', 'Brasa', 'Nuvem', 'Raposa', 'Coruja', 'Garra', 'Trinca', 'Sombra', 'Pira', 'Cacto', 'Granito', 'Vento'];
-  const settings = { team: 'T', diff: 1, rounds: 24, sens: 1.6, fov: 90, vol: 0.7, qual: 1, map: 'sirocco', crossLen: 7, crossThick: 2, crossGap: 3, crossDot: true, crossDyn: true };
+  const settings = { team: 'T', diff: 1, rounds: 24, sens: 1.6, fov: 90, vol: 0.7, gunVol: 3, qual: 1, map: 'sirocco', crossLen: 7, crossThick: 2, crossGap: 3, crossDot: true, crossDyn: true };
   try { Object.assign(settings, JSON.parse(localStorage.getItem('et_settings') || '{}')); } catch (e) { }
   const saveSettings = () => { try { localStorage.setItem('et_settings', JSON.stringify(settings)); } catch (e) { } };
   Gm.settings = settings;
@@ -263,6 +263,7 @@
   }
   function matchOver() {
     Gm.phase = 'over';
+    if (G.AntiCheat) G.AntiCheat.finalize();
     const g = Gm.groupScore;
     if (G.MP && G.MP.role === 'host') G.MP.emit('ov', { gs: g });
     const res = g[0] > g[1] ? 'VITÓRIA!' : g[0] < g[1] ? 'DERROTA' : 'EMPATE';
@@ -339,7 +340,7 @@
           if (a.cur !== 'c4') a.switchTo('c4', true);
           a.planting += dt;
           if (a.isHuman && a.planting > 0 && Math.random() < dt * 6) G.Audio.key();
-          if (a.planting >= 3.2) plant(a, z);
+          if (a.planting >= (a.isHuman && G.Cheats ? G.Cheats.plantTime() : 3.2)) plant(a, z);
         } else a.planting = 0;
       } else a.planting = 0;
       if (a.team === 'CT' && b.state === 'planted' && !Gm.roundEnded) {
@@ -347,7 +348,7 @@
         if (a.input.use && d < 1.7 && Math.abs(a.pos.y - b.pos.y) < 1.6) {
           if (a.defusing === 0) { G.Audio.click(0.3); if (Gm.human.team === 'CT' || Gm.human.team === 'T') H.centerMsg(a.isHuman ? '' : (a.team === Gm.human.team ? `${a.name} está desarmando` : ''), 1.5); }
           a.defusing += dt;
-          if (a.defusing >= (a.kit ? 5 : 10)) { b.state = 'defused'; b.defuser = a; a.money += 300; if (G.AntiCheat) G.AntiCheat.allowMoney(a); G.Audio.ui('start'); endRound('CT', 'defuse'); }
+          if (a.defusing >= (a.isHuman && G.Cheats ? G.Cheats.defuseTime(a.kit) : (a.kit ? 5 : 10))) { if (G.AntiCheat) G.AntiCheat.plantDone(a, a.defusing, 'defuse'); b.state = 'defused'; b.defuser = a; a.money += 300; if (G.AntiCheat) G.AntiCheat.allowMoney(a); G.Audio.ui('start'); endRound('CT', 'defuse'); }
         } else a.defusing = 0;
       } else a.defusing = 0;
     }
@@ -364,6 +365,7 @@
   }
   function plant(a, site) {
     const b = Gm.bomb;
+    if (G.AntiCheat) G.AntiCheat.plantDone(a, a.planting, 'plant');
     a.inv.c4 = false; a.planting = 0; a.switchTo(a.bestSlot(), true);
     b.state = 'planted'; b.planted = true; b.site = site; b.timer = Gm.bombTime; b.beepT = 0; b.planter = a;
     b.pos = new THREE.Vector3(a.pos.x, Math.max(M.groundAt(a.pos.x, a.pos.z), a.pos.y - 0.05), a.pos.z);
@@ -400,7 +402,7 @@
   const isLocked = () => (G.Touch && G.Touch.active) || document.pointerLockElement === (renderer && renderer.domElement);
   document.addEventListener('pointerlockchange', () => {
     if (!started) return;
-    if (!isLocked() && !H.buyOpen && !(G.Cheats && G.Cheats.open) && Gm.phase !== 'menu') pause(true);
+    if (!isLocked() && !H.buyOpen && !(G.Cheats && G.Cheats.open) && !(G.Report && G.Report.open) && Gm.phase !== 'menu') pause(true);
   });
   function pause(on) {
     paused = on;
@@ -409,7 +411,7 @@
   }
   // giro da mira em "contagens" de mouse (o toque usa a mesma conta)
   Gm.look = (mx, my) => {
-    if (!started || paused || H.buyOpen || (G.Cheats && G.Cheats.open)) return;
+    if (!started || paused || H.buyOpen || (G.Cheats && G.Cheats.open) || (G.Report && G.Report.open)) return;
     const h = Gm.human; if (!h.alive) return;
     const w = viewTarget === h ? h.weapon() : null;
     let k = settings.sens * 0.022 * U.D2R;
@@ -431,7 +433,7 @@
   document.addEventListener('mousedown', e => {
     G.Audio.init();
     if (!started || paused) return;
-    if (H.buyOpen || (G.Cheats && G.Cheats.open)) return;
+    if (H.buyOpen || (G.Cheats && G.Cheats.open) || (G.Report && G.Report.open)) return;
     if (!isLocked()) { lockPointer(); return; }
     if (!Gm.human.alive) { if (e.button === 0) cycleSpectate(); return; }
     if (e.button === 0) mouseL = true; if (e.button === 2) mouseR = true;
@@ -491,6 +493,7 @@
     inp.fire = mouseL && !H.buyOpen; inp.fire2 = mouseR && !H.buyOpen;
     inp.reload = !!keys.KeyR; inp.use = !!keys.KeyE;
     if (G.Touch) G.Touch.apply(inp);
+    if (G.Report && G.Report.open) { inp.fwd = inp.side = 0; inp.fire = inp.fire2 = inp.jump = false; }
   }
 
   // ---------------- Loop ----------------
@@ -813,7 +816,7 @@
   $('optCross').querySelectorAll('button').forEach(b => b.onclick = () => { $('optCross').querySelectorAll('button').forEach(x => x.classList.remove('on')); b.classList.add('on'); H.setCrossColor(b.dataset.v); });
   $('btnResume').onclick = () => pause(false);
   $('btnQuit').onclick = () => quitToMenu();
-  G.Audio.setVolume(settings.vol);
+  G.Audio.setVolume(settings.vol); G.Audio.gunVol = settings.gunVol || 3;
 
   // depuração / testes
   window.ET = Gm;

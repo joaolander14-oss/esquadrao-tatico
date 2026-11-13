@@ -287,3 +287,21 @@ body.touch #topbar{transform:translateX(-50%) scale(.8);transform-origin:top cen
 body.touch #roundInfo{top:44px}
 body.touch #hint{bottom:58px;font-size:13px}
 body.touch #buymenu,body.touch #scoreboard,body.touch .menuBox{max-height:100vh;overflow:auto}
+
+#rpPanel{position:fixed;inset:0;z-index:60;background:rgba(5,7,10,.7);display:flex;align-items:center;justify-content:center;font-family:"Segoe UI",Roboto,Arial,sans-serif;color:#e9edf2}
+#rpPanel.hidden{display:none}
+#rpPanel .rp-box{width:min(520px,96vw);max-height:94vh;overflow:auto;background:linear-gradient(180deg,#171b23,#101319);border:1px solid #ffffff1c;border-radius:12px;padding:16px 20px;box-shadow:0 20px 60px #000a}
+#rpPanel header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+#rpPanel header b{font-family:Rajdhani,Arial;font-size:22px;letter-spacing:3px;color:#ff7a5c}
+#rpPanel .x{background:none;border:0;color:#9aa6b5;font-size:20px;cursor:pointer}
+#rpPanel .rp-list{max-height:34vh;overflow:auto;display:grid;gap:4px;margin-bottom:8px}
+#rpPanel .rp-row{display:grid;grid-template-columns:auto 44px 1fr auto;gap:8px;align-items:center;padding:6px 8px;border:1px solid #ffffff14;border-radius:7px;cursor:pointer;font-size:14px}
+#rpPanel .rp-row.on{border-color:#ff7a5c;background:#ff7a5c18}
+#rpPanel .rp-row .tm{font:700 11px Rajdhani,Arial;letter-spacing:1px;text-align:center;border-radius:4px;padding:2px 0}
+#rpPanel .rp-row .tm.T{background:#c8902c33;color:#ffc23d}#rpPanel .rp-row .tm.CT{background:#3b7bd433;color:#7fb4ff}
+#rpPanel .rp-row em{color:#8a96a6;font-style:normal;font-size:12px}
+#rpPanel label{display:block;font-size:13px;color:#9aa6b5;margin:6px 0}
+#rpPanel input:not([type=radio]),#rpPanel select{width:100%;height:38px;margin-top:4px;background:#0b0e13;border:1px solid #ffffff25;border-radius:7px;color:#fff;padding:0 10px;font-size:15px}
+#rpPanel button.pri{width:100%;height:42px;margin-top:8px;border:0;border-radius:8px;background:linear-gradient(135deg,#ff7a5c,#e0453a);color:#fff;font:700 18px Rajdhani,Arial;letter-spacing:2px;cursor:pointer}
+#rpPanel .rp-note{color:#6b7686;font-size:12px;line-height:1.4}
+#rpPanel .rp-msg{min-height:18px;font-size:13px;margin-top:6px}#rpPanel .rp-msg.ok{color:#6fe08a}#rpPanel .rp-msg.bad{color:#ff8a7a}

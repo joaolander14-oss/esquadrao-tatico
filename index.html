@@ -9,8 +9,8 @@
 <title>Esquadrão Tático</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap">
-<link rel="stylesheet" href="css/style.css?v=91">
-<link rel="stylesheet" href="css/menu.css?v=91">
+<link rel="stylesheet" href="css/style.css?v=93">
+<link rel="stylesheet" href="css/menu.css?v=93">
 </head>
 <body>
 <div id="game"></div>
@@ -63,6 +63,7 @@
     <div class="row"><label>Cor da mira</label>
       <div class="seg" id="optCross"><button data-v="#3f6" class="on">Verde</button><button data-v="#0ff">Ciano</button><button data-v="#ff3">Amarelo</button><button data-v="#f3f">Rosa</button><button data-v="#fff">Branco</button></div></div>
     <button id="btnCheats">Painel Invicto (Insert / F8)</button>
+    <button id="btnReport" onclick="G.Report.toggle(true)">Denunciar jogador (F7)</button>
     <button id="btnAC" onclick="G.AntiCheat.report()">Relatório do Guardião (F9)</button>
     <button id="btnQuit">Sair para o menu</button>
   </div>
@@ -71,30 +72,31 @@
 <div id="loading" class="screen hidden"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="js/util.js?v=91"></script>
-<script src="js/textures.js?v=91"></script>
-<script src="js/weapons.js?v=91"></script>
-<script src="js/map.js?v=91"></script>
-<script src="js/detail.js?v=91"></script>
-<script src="js/furniture.js?v=91"></script>
-<script src="js/maps.js?v=91"></script>
-<script src="js/maps3.js?v=91"></script>
-<script src="js/maps_extra.js?v=91"></script>
-<script src="js/audio.js?v=91"></script>
-<script src="js/models.js?v=91"></script>
-<script src="js/gunmodels.js?v=91"></script>
-<script src="js/agents.js?v=91"></script>
-<script src="js/skins.js?v=91"></script>
-<script src="js/agent.js?v=91"></script>
-<script src="js/combat.js?v=91"></script>
-<script src="js/smoke.js?v=91"></script>
-<script src="js/bots.js?v=91"></script>
-<script src="js/hud.js?v=91"></script>
-<script src="js/game.js?v=91"></script>
-<script src="js/touch.js?v=91"></script>
-<script src="js/cheats.js?v=91"></script>
-<script src="js/anticheat.js?v=91"></script>
-<script src="js/mp.js?v=91"></script>
-<script src="js/menu.js?v=91"></script>
+<script src="js/util.js?v=93"></script>
+<script src="js/textures.js?v=93"></script>
+<script src="js/weapons.js?v=93"></script>
+<script src="js/map.js?v=93"></script>
+<script src="js/detail.js?v=93"></script>
+<script src="js/furniture.js?v=93"></script>
+<script src="js/maps.js?v=93"></script>
+<script src="js/maps3.js?v=93"></script>
+<script src="js/maps_extra.js?v=93"></script>
+<script src="js/audio.js?v=93"></script>
+<script src="js/models.js?v=93"></script>
+<script src="js/gunmodels.js?v=93"></script>
+<script src="js/agents.js?v=93"></script>
+<script src="js/skins.js?v=93"></script>
+<script src="js/agent.js?v=93"></script>
+<script src="js/combat.js?v=93"></script>
+<script src="js/smoke.js?v=93"></script>
+<script src="js/bots.js?v=93"></script>
+<script src="js/hud.js?v=93"></script>
+<script src="js/game.js?v=93"></script>
+<script src="js/touch.js?v=93"></script>
+<script src="js/cheats.js?v=93"></script>
+<script src="js/anticheat.js?v=93"></script>
+<script src="js/report.js?v=93"></script>
+<script src="js/mp.js?v=93"></script>
+<script src="js/menu.js?v=93"></script>
 </body>
 </html>

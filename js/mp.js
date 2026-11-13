@@ -326,6 +326,7 @@
         break;
       }
       case 'sh': C.remoteShot(a, m.vy, m.vp, m.by, m.bp); break;
+      case 'report': { const t = g.agents[m.i | 0]; const r = G.AntiCheat && G.AntiCheat.denounce(a, t, String(m.why || 'abuse'), String(m.note || '')); MP.toAgent(a, { t: 'msg', s: r ? r.msg : 'Denúncia indisponível.', d: 5 }); break; }
       case 'kn': C.remoteKnife(a, !!m.h); break;
       case 'nd': if (a.alive && a.inv.grenades.includes(m.id)) C.throwNade(a, m.id, U.clamp(m.s, 0.3, 1), m.y, m.p); break;
       case 'sw': if (a.alive) { if (m.s === 'grenade' && typeof m.n === 'number') a.nadeIdx = m.n; a.switchTo(m.s, true); } break;

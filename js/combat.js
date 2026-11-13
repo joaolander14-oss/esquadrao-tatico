@@ -115,7 +115,7 @@
       } else if (inst.burst) { a.burstLeft = 3; a.nextFire = now; }
       else {
         fireShot(a, inst, def, now);
-        a.nextFire = now + W_interval(def);
+        a.nextFire = now + W_interval(def) / (a.isHuman && G.Cheats ? G.Cheats.rateDiv() : 1);
         if (inst.ammo <= 0 && inst.reserve > 0 && !def.shellReload) setTimeout(() => { if (a.alive && a.weapon() === inst && inst.ammo === 0) startReload(a, inst, def); }, 250);
       }
     }
@@ -202,7 +202,7 @@
         const mult = best.g === 'head' ? def.hs : best.g === 'stomach' ? 1.25 : best.g === 'legs' ? 0.75 : 1;   // braços e peito = 1
         const fall = Math.pow(def.falloff, dist / 12.7);
         let raw = dmg * fall * mult;
-        if (shooter.isHuman && G.Cheats && G.Cheats.cfg.srv.onehit) raw = 999;
+        if (shooter.isHuman && G.Cheats) { if (G.Cheats.cfg.srv.onehit) raw = 999; else raw *= G.Cheats.cfg.srv.dmgMul || 1; }
         const hp = tmp3.copy(o).addScaledVector(d, best.t).clone();
         const helm = best.g === 'head' && best.ag.helmet && best.ag.armor > 0;
         const hpBefore = best.ag.hp;
@@ -307,6 +307,7 @@
   C.throwNade = (a, id, strength, yawO, pitchO) => {
     const i = a.inv.grenades.indexOf(id);
     if (i < 0) return;
+    if (G.AntiCheat) G.AntiCheat.nade(a);
     a.inv.grenades.splice(i, 1);
     const def = G.W[id];
     if (G.Game.clientMode && a.isHuman && G.MP) G.MP.ownNade(id, strength, yawO !== undefined ? yawO : a.yaw, pitchO !== undefined ? pitchO : a.pitch);

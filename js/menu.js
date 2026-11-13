@@ -320,8 +320,8 @@
 
   // ---------------- CONFIGURAÇÕES ----------------
   function renderSettings(body) {
-    const s = Gm().settings;
-    const sl = (k, l, min, max, step, fmt) => `<div class="cfg-row"><label>${l}<b id="v_${k}">${fmt(s[k])}</b></label><input type="range" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${k === 'vol' ? s[k] * 100 : s[k]}"></div>`;
+    const s = Gm().settings; if (!s.gunVol) s.gunVol = 3;
+    const sl = (k, l, min, max, step, fmt) => `<div class="cfg-row"><label>${l}<b id="v_${k}">${fmt(s[k])}</b></label><input type="range" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${k === 'vol' || k === 'gunVol' ? s[k] * 100 : s[k]}"></div>`;
     const crossCol = (() => { try { return localStorage.getItem('et_cross') || '#3f6'; } catch (e) { return '#3f6'; } })();
     body.innerHTML = `
       <section class="mm-col mm-cfg">
@@ -330,6 +330,7 @@
         ${sl('fov', 'Campo de visão', 70, 110, 1, v => v + '°')}
         <h3>Áudio</h3>
         ${sl('vol', 'Volume geral', 0, 100, 1, v => Math.round(v * 100) + '%')}
+        ${sl('gunVol', 'Volume dos tiros', 50, 800, 10, v => Math.round((v || 3) * 100) + '%')}
         <h3>Controles</h3>
         <div class="cfg-row"><div class="mm-seg" id="cfgTouch">${[['auto', 'Automático'], ['on', 'Toque (celular)'], ['off', 'Teclado e mouse']].map(([v, l]) => `<button data-v="${v}" class="${(s.touch || 'auto') === v ? 'on' : ''}">${l}</button>`).join('')}</div><small class="note">No celular: analógico à esquerda, arraste à direita para mirar, segure o botão de tiro e arraste para mirar atirando.</small></div>
         <div class="cfg-row"><label>Sensibilidade do toque <b id="tsLbl">${(s.touchSens || 1).toFixed(2)}</b></label><input type="range" id="cfgTSens" min="0.3" max="3" step="0.05" value="${s.touchSens || 1}"></div>
@@ -351,10 +352,11 @@
         <label class="cfg-chk"><input type="checkbox" id="cfgDyn" ${s.crossDyn ? 'checked' : ''}> Mira dinâmica (abre ao mover/atirar)</label>
       </section>`;
     body.querySelectorAll('input[type=range]').forEach(el => el.oninput = () => {
-      const k = el.dataset.k; s[k] = k === 'vol' ? el.value / 100 : Number(el.value);
-      const fmt = { sens: v => Number(v).toFixed(2), fov: v => v + '°', vol: v => Math.round(v * 100) + '%' }[k] || (v => v);
+      const k = el.dataset.k; s[k] = (k === 'vol' || k === 'gunVol') ? el.value / 100 : Number(el.value);
+      const fmt = { sens: v => Number(v).toFixed(2), fov: v => v + '°', vol: v => Math.round(v * 100) + '%', gunVol: v => Math.round(v * 100) + '%' }[k] || (v => v);
       $('v_' + k).textContent = fmt(s[k]);
       if (k === 'vol') G.Audio.setVolume(s.vol);
+      if (k === 'gunVol') { G.Audio.gunVol = s.gunVol; }
       Gm().saveSettings(); crossPreview();
     });
     body.querySelectorAll('#cfgTouch button').forEach(b => b.onclick = () => { s.touch = b.dataset.v; Gm().saveSettings(); if (G.Touch) G.Touch.decide(); render(); });
