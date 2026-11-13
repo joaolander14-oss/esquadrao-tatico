@@ -79,8 +79,7 @@
           if (inst.ammo < def.mag && inst.reserve > 0) a.reloadT = def.reload; else a.reloadT = 0;
         }
       } else if (a.reloadT <= 0) {
-        const take = Math.min(def.mag - inst.ammo, inst.reserve);
-        inst.ammo += take; inst.reserve -= take; a.reloadT = 0;
+        G.Ammo.swap(inst); a.reloadT = 0;
       }
       if (a.reloadT > 0 || !def.shellReload) { a.firePrev = inp.fire; a.fire2Prev = inp.fire2; return; }
     }
@@ -480,7 +479,7 @@
     const def = G.W[m.w]; if (!def || !scene) return;
     const mesh = G.Models.gun(def), pos = new THREE.Vector3(m.p[0], m.p[1], m.p[2]);
     mesh.position.copy(pos); scene.add(mesh);
-    C.drops.push({ inst: { def, ammo: m.am, reserve: m.rs, silencer: !!m.sl, burst: false, zoom: 0 }, mesh, pos, vel: new THREE.Vector3(m.v[0], m.v[1], m.v[2]), t: 0, from: null, nid: m.n });
+    C.drops.push({ inst: G.Ammo.mk(def, m.am, m.rs, { silencer: !!m.sl }), mesh, pos, vel: new THREE.Vector3(m.v[0], m.v[1], m.v[2]), t: 0, from: null, nid: m.n });
   };
   C.netDropRemove = (n) => { const d = C.drops.find(x => x.nid === n); if (d) removeDrop(d); };
   C.netNade = (a, id, pos, vel) => {

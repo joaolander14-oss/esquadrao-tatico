@@ -139,15 +139,15 @@
     a.input.side = dx * cy + dz * -sy;
     a.input.walk = !run;
   }
-  function goTo(a, x, z, dt, run, arriveR) {
+  function goTo(a, x, z, dt, run, arriveR, gy) {
     const ai = a.ai;
-    if (!ai.goal || Math.hypot(ai.goal.x - x, ai.goal.z - z) > 0.8 || !ai.path) {
-      ai.goal = { x, z }; ai.path = M.findPath(a.pos.x, a.pos.z, x, z); ai.pi = 0; ai.repath = 4;
+    if (!ai.goal || Math.hypot(ai.goal.x - x, ai.goal.z - z) > 0.8 || ai.goal.y !== gy || !ai.path) {
+      ai.goal = { x, z, y: gy }; ai.path = M.findPath(a.pos.x, a.pos.z, x, z, a.pos.y, gy); ai.pi = 0; ai.repath = 4;
     }
     ai.repath -= dt;
-    if (ai.repath <= 0) { ai.path = M.findPath(a.pos.x, a.pos.z, x, z); ai.pi = 0; ai.repath = 4; }
+    if (ai.repath <= 0) { ai.path = M.findPath(a.pos.x, a.pos.z, x, z, a.pos.y, gy); ai.pi = 0; ai.repath = 4; }
     const dist = Math.hypot(a.pos.x - x, a.pos.z - z);
-    if (dist < (arriveR || 0.7)) { a.input.fwd = a.input.side = 0; return true; }
+    if (dist < (arriveR || 0.7) && (gy === undefined || Math.abs(a.pos.y - gy) < 2.0)) { a.input.fwd = a.input.side = 0; return true; }
     if (!ai.path || !ai.path.length) { setMove(a, x - a.pos.x, z - a.pos.z, run); return false; }
     let wp = ai.path[Math.min(ai.pi, ai.path.length - 1)];
     while (ai.pi < ai.path.length - 1 && Math.hypot(wp.x - a.pos.x, wp.z - a.pos.z) < 0.7) { ai.pi++; wp = ai.path[ai.pi]; }
@@ -341,7 +341,7 @@
       if (d) {
         const ts = game.agents.filter(x => x.alive && x.team === 'T' && !x.isHuman && !x.remote);
         ts.sort((p, q) => p.pos.distanceTo(d.pos) - q.pos.distanceTo(d.pos));
-        if (ts[0] === a) { goTo(a, d.pos.x, d.pos.z, dt, true, 0.3); return; }
+        if (ts[0] === a) { goTo(a, d.pos.x, d.pos.z, dt, true, 0.3, d.pos.y); return; }
       }
     }
     if (bomb.state === 'planted') {
@@ -350,19 +350,19 @@
         const list = bomb.site === 'A' ? M.spots.postA : M.spots.postB;
         ai.post = list[U.randi(0, list.length - 1)];
       }
-      const arrived = goTo(a, ai.post.x, ai.post.z, dt, true, 0.8);
+      const arrived = goTo(a, ai.post.x, ai.post.z, dt, true, 0.8, ai.post.y);
       if (arrived) { ai.lookOverride = true; turnTo(a, ai.post.yaw + Math.sin(now * 0.5) * 0.4, 0, dt, 0.4); inp.crouch = Math.random() < 0.02 ? !inp.crouch : inp.crouch; }
       return;
     }
     const timeLeft = game.roundTimeLeft();
     // carregador: ir plantar
     if (a.inv.c4) {
-      const zone = M.zoneAt(a.pos.x, a.pos.z);
+      const zone = M.zoneAt(a.pos.x, a.pos.z, a.pos.y);
       const site = ai.site || team.site;
       const ready = team.execute || timeLeft < 40 || ai.routeDone;
       if (zone === site || (zone === 'A' || zone === 'B') && timeLeft < 30) {
         if (!ai.plantSpot) ai.plantSpot = U.pick(site === 'A' ? M.spots.plantA : M.spots.plantB);
-        const there = goTo(a, ai.plantSpot.x, ai.plantSpot.z, dt, true, 1.2);
+        const there = goTo(a, ai.plantSpot.x, ai.plantSpot.z, dt, true, 1.2, ai.plantSpot.y);
         if (there || zone === site && Math.random() < 0.003) {
           if (a.cur !== 'c4') a.switchTo('c4');
           inp.use = true; inp.fwd = inp.side = 0; inp.crouch = true;
@@ -371,7 +371,7 @@
       }
       if (!ready && ai.route && ai.route.length > 1) { followRoute(a, ai, dt, now, team); return; }
       const sc = M.siteCenter(site);
-      goTo(a, sc.x, sc.z, dt, true, 1);
+      goTo(a, sc.x, sc.z, dt, true, 1, sc.y);
       return;
     }
     if (timeLeft < 35 && !team.execute) team.execute = true;
@@ -379,7 +379,7 @@
   }
   function followRoute(a, ai, dt, now, team) {
     const r = ai.route;
-    if (!r || !r.length) { ai.routeDone = true; const sc = M.siteCenter(ai.site || team.site); if (goTo(a, sc.x, sc.z, dt, true, 3)) idleLook(a, ai, dt, now); return; }
+    if (!r || !r.length) { ai.routeDone = true; const sc = M.siteCenter(ai.site || team.site); if (goTo(a, sc.x, sc.z, dt, true, 3, sc.y)) idleLook(a, ai, dt, now); return; }
     ai.ri = ai.ri || 0;
     const staging = r.length - 2;
     if (ai.ri > staging && !team.execute) {
@@ -391,7 +391,7 @@
       idleLook(a, ai, dt, now);
       return;
     }
-    if (ai.ri >= r.length) { ai.routeDone = true; const sc = M.siteCenter(ai.site); goTo(a, sc.x + U.rand(-3, 3), sc.z + U.rand(-3, 3), dt, true, 3); return; }
+    if (ai.ri >= r.length) { ai.routeDone = true; const sc = M.siteCenter(ai.site); goTo(a, sc.x + U.rand(-3, 3), sc.z + U.rand(-3, 3), dt, true, 3, sc.y); return; }
     const wp = r[ai.ri];
     // granadas de execução
     if (team.execute && ai.ri === r.length - 1 && !ai.nadeDone && (ai.role === 'entry' || ai.role === 'support')) {
@@ -401,7 +401,7 @@
       if (id) { lobAt(a, sc.x + U.rand(-3, 3), sc.z + U.rand(-4, 0), id); return; }
     }
     const lurkSlow = ai.role === 'lurk' && G.Game.roundTime < 30;
-    if (goTo(a, wp.x, wp.z, dt, !lurkSlow, 1.5)) ai.ri++;
+    if (goTo(a, wp.x, wp.z, dt, !lurkSlow, 1.5, wp.y)) ai.ri++;
   }
   function lobAt(a, x, z, id) {
     const dx = x - a.pos.x, dz = z - a.pos.z, R = Math.hypot(dx, dz);
@@ -433,11 +433,11 @@
     const game = G.Game, bomb = game.bomb, inp = a.input;
     if (bomb.state === 'planted') {
       const bp = bomb.pos;
-      const d = Math.hypot(a.pos.x - bp.x, a.pos.z - bp.z);
+      const d = Math.hypot(a.pos.x - bp.x, a.pos.z - bp.z, a.pos.y - bp.y);
       // alguém já desarmando?
       const defuser = game.agents.find(x => x.alive && x.team === 'CT' && x.defusing > 0 && x !== a);
       if (defuser && d < 12) { ai.lookOverride = true; idleLook(a, ai, dt, now); return; }
-      const arrived = goTo(a, bp.x, bp.z, dt, true, 0.9);
+      const arrived = goTo(a, bp.x, bp.z, dt, true, 0.9, bp.y);
       if (arrived || d < 1.2) {
         ai.state = 'defuse';
         inp.use = true; inp.fwd = inp.side = 0; inp.crouch = true;
@@ -454,7 +454,7 @@
       ai.hold = U.pick(list);
     }
     if (ai.hold) {
-      const arrived = goTo(a, ai.hold.x, ai.hold.z, dt, !ai.rotated || true, 0.6);
+      const arrived = goTo(a, ai.hold.x, ai.hold.z, dt, !ai.rotated || true, 0.6, ai.hold.y);
       if (arrived) {
         ai.lookOverride = true;
         if (ai.alertT <= 0) turnTo(a, ai.hold.yaw + Math.sin(now * 0.4 + a.pos.z) * 0.35, -0.02, dt, 0.35);

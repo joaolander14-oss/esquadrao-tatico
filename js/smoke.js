@@ -140,7 +140,7 @@
         const v = s.vox[q];
         const grow = U.clamp((s.t - v.born) / 0.55, 0, 1);
         const fade = U.clamp((tl - 1.8 * (v.d / s.maxD)) / 2.0, 0, 1);
-        const cut = now < v.cut ? 0 : U.clamp((now - v.cut) / 0.9, 0, 1);
+        const cut = now < v.cut ? 0 : U.clamp((now - v.cut) / 2.4, 0, 1);   // some e volta devagar
         v.a = grow * fade * cut;
         const edge = 1 - 0.35 * (v.d / s.maxD);
         A[q * 2] = A[q * 2 + 1] = v.a * 0.5 * edge;
@@ -202,7 +202,7 @@
         let t = ((v.x - a.x) * dx + (v.y - a.y) * dy + (v.z - a.z) * dz) / L2; t = U.clamp(t, 0, 1);
         const ex = a.x + dx * t - v.x, ey = a.y + dy * t - v.y, ez = a.z + dz * t - v.z;
         const d2 = ex * ex + ey * ey + ez * ez;
-        if (d2 < 0.42) v.cut = Math.max(v.cut, now + 1.1 + (0.42 - d2) * 1.2);
+        if (d2 < 1.15) v.cut = Math.max(v.cut, now + 3.4 + (1.15 - d2) * 2.2);   // tiro abre um túnel largo que fica ~4 s
       }
     }
   };
@@ -210,8 +210,8 @@
   Sm.push = (pos, r) => {
     const now = G.Game.time;
     for (const s of Sm.list) for (const v of s.vox) {
-      const d = Math.hypot(v.x - pos.x, v.y - pos.y, v.z - pos.z);
-      if (d < r) v.cut = Math.max(v.cut, now + 1.4 + (1 - d / r) * 1.6);
+      const d = Math.hypot(v.x - pos.x, v.y - pos.y, v.z - pos.z), R = r * 2.6;
+      if (d < R) v.cut = Math.max(v.cut, now + 6.5 + (1 - d / R) * 4.5);   // HE varre a fumaça por ~7-11 s
     }
   };
   Sm.clear = () => { for (const s of Sm.list) { scene.remove(s.group); s.group.geometry.dispose(); s.group.material.dispose(); } Sm.list.length = 0; if (veil) veil.style.opacity = 0; };

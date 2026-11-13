@@ -65,7 +65,7 @@
     // munição
     const w = me.weapon(); const def = w ? w.def : G.W.knife;
     $('wname').textContent = def.name + (w && w.burst ? ' · rajada' : '') + (w && w.silencer && def.silencer === true ? ' · supressor' : '');
-    if (def.mag && def.cat !== 'equip') { $('clip').textContent = w.ammo; $('reserve').textContent = w.reserve; $('clip').className = w.ammo <= Math.ceil(def.mag * 0.2) ? 'low' : ''; }
+    if (def.mag && def.cat !== 'equip') { $('clip').textContent = w.ammo; $('reserve').textContent = def.shellReload ? w.reserve : (w.spare.length + (w.spare.length === 1 ? ' pente' : ' pentes')); $('clip').className = w.ammo <= Math.ceil(def.mag * 0.2) ? 'low' : ''; }
     else if (def.cat === 'grenade') { $('clip').textContent = me.inv.grenades.length; $('reserve').textContent = '—'; }
     else if (def.id === 'taser') { $('clip').textContent = 1; $('reserve').textContent = '0'; }
     else { $('clip').textContent = '—'; $('reserve').textContent = ''; }

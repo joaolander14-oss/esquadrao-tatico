@@ -115,9 +115,29 @@
       decor(d, c, S) { d.banner(c(36), 5.2, 3 * S + 0.12, 0, 0xc83a1a, 1.4, 2.6); }
     }
   };
+  // pele das caixas e barris de cada mapa (textura/cor) e estilo das torres de vigia
+  const COVER = {
+    sirocco: { crateTex: 'planks', crateColor: 0xe6c690, barrelColor: 0x9a6a3a },
+    porto: { crateTex: 'container', crateColor: 0x4a7a9a, barrelColor: 0x2a5a8a },
+    nevada: { crateTex: 'planks', crateColor: 0xb4ccdc, barrelColor: 0x4a6a8a },
+    colonial: { crateTex: 'wood', crateColor: 0xd8b890, barrelColor: 0x6a4a2a },
+    usina: { crateTex: 'steelPlate', crateColor: 0x9aa0a4, barrelColor: 0xd8b020 },
+    ferro: { crateTex: 'corrugated', crateColor: 0x9a5a3a, barrelColor: 0x3a5a3a },
+    templo: { crateTex: 'sandstone', crateColor: 0xe8d8a8, barrelColor: 0xb08a4a },
+    fortaleza: { crateTex: 'stoneWall', crateColor: 0xb8b4a8, barrelColor: 0x6a4a2a },
+    neon: { crateTex: 'darkTiles', crateColor: 0x8a5ac0, barrelColor: 0xd040b0 },
+    fundicao: { crateTex: 'slag', crateColor: 0x8a6a5a, barrelColor: 0xc86a1a },
+    bairro: { crateTex: 'plaster', crateColor: 0xd8c8a8, barrelColor: 0x4a7a5a },
+    ruinas: { crateTex: 'moss', crateColor: 0xb8c8a0, barrelColor: 0x6a6a50 },
+    esgoto: { crateTex: 'metal', crateColor: 0x4a6a4a, barrelColor: 0x6a9a2a },
+    pontes: { crateTex: 'wood', crateColor: 0xc8a070, barrelColor: 0x8a5a3a }
+  };
+  const TOWER = { sirocco: 'stone', porto: 'metal', nevada: 'ice', colonial: 'wood', usina: 'metal', ferro: 'metal', templo: 'stone', fortaleza: 'stone', neon: 'metal', fundicao: 'metal', bairro: 'wood', ruinas: 'ruin', esgoto: 'metal', pontes: 'wood' };
   for (const id in X) {
     const def = M.defs[id], ex = X[id]; if (!def) continue;
-    for (const k of ['houses', 'ladderCount', 'glass', 'furnDens', 'furnLib', 'setpieces', 'carve2']) if (ex[k] !== undefined) def[k] = ex[k];
+    for (const k of ['houses', 'ladderCount', 'glass', 'furnDens', 'furnLib', 'setpieces', 'carve2', 'pipeCount', 'towerCount', 'towerStyle', 'glassColor', 'ladders']) if (ex[k] !== undefined) def[k] = ex[k];
+    if (COVER[id]) def.theme = Object.assign({}, def.theme, COVER[id]);
+    if (TOWER[id]) def.towerStyle = TOWER[id];
     if (ex.theme) { const th = Object.assign({}, def.theme, ex.theme); th.mats = Object.assign({}, (def.theme || {}).mats || {}, ex.theme.mats || {}); def.theme = th; }
     if (ex.decor) { const od = def.decor; def.decor = d => { if (od) od(d); ex.decor(d, d.c, d.S); }; }
   }

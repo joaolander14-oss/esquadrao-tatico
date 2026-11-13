@@ -524,7 +524,7 @@
   let lastHostCur = null;
   function applyMe(me) {
     const h = Gm().human; if (!h) return;
-    const mk = (w) => { if (!w) return null; const d = G.W[w[0]]; if (!d) return null; return { def: d, ammo: w[1], reserve: w[2], silencer: !!w[3], burst: !!w[4], zoom: 0 }; };
+    const mk = (w) => { if (!w) return null; const d = G.W[w[0]]; if (!d) return null; return G.Ammo.mk(d, w[1], w[2], { silencer: !!w[3], burst: !!w[4] }); };
     const recent = Gm().time - h.lastShot < 0.6 || h.reloadT > 0;
     for (const [k, w] of [['primary', me.p], ['secondary', me.s]]) {
       const cur = h.inv[k];

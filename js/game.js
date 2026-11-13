@@ -186,6 +186,8 @@
     for (const a of Gm.agents) {
       const p = sp[a.team].pop();
       a.spawn(p, a.team === 'T' ? 0 : Math.PI);
+      // a munição volta cheia a cada rodada (carregador + todos os pentes reserva)
+      G.Ammo.refill(a.inv.primary); G.Ammo.refill(a.inv.secondary);
     }
     // online: avisa o início da rodada ANTES das compras dos bots (que podem largar armas)
     if (G.MP && G.MP.role === 'host') G.MP.emit('rs', { rd: Gm.round, pistol: pistolRound, ag: Gm.agents.map(a => [+a.pos.x.toFixed(2), +a.pos.z.toFixed(2), +a.yaw.toFixed(3), a.team, a.agentId, a.group]) });
@@ -331,7 +333,7 @@
     for (const a of Gm.agents) {
       if (!a.alive) continue;
       if (a.team === 'T' && a.inv.c4 && Gm.phase === 'live') {
-        const z = M.zoneAt(a.pos.x, a.pos.z);
+        const z = M.zoneAt(a.pos.x, a.pos.z, a.pos.y);
         const wants = a.input.use || (a.cur === 'c4' && a.input.fire);
         if ((z === 'A' || z === 'B') && wants && a.onGround) {
           if (a.cur !== 'c4') a.switchTo('c4', true);
@@ -364,7 +366,7 @@
     const b = Gm.bomb;
     a.inv.c4 = false; a.planting = 0; a.switchTo(a.bestSlot(), true);
     b.state = 'planted'; b.planted = true; b.site = site; b.timer = Gm.bombTime; b.beepT = 0; b.planter = a;
-    b.pos = new THREE.Vector3(a.pos.x, M.groundAt(a.pos.x, a.pos.z), a.pos.z);
+    b.pos = new THREE.Vector3(a.pos.x, Math.max(M.groundAt(a.pos.x, a.pos.z), a.pos.y - 0.05), a.pos.z);
     a.money = Math.min(16000, a.money + 300);
     if (G.AntiCheat) G.AntiCheat.allowMoney(a);
     Gm.bombMesh = G.Models.bomb(); Gm.bombMesh.position.copy(b.pos); Gm.bombMesh.rotation.y = a.yaw; scene.add(Gm.bombMesh);
@@ -470,7 +472,7 @@
     if (k === 'KeyQ') h.switchTo(h.has(h.lastSlot) ? h.lastSlot : h.bestSlot());
     if (k === 'KeyG') { if (Gm.clientMode) G.MP.drop(); else C.dropCurrent(h); }
     if (k === 'KeyF') inspectT = 2.2;
-    if (k === 'KeyE') { if (!(Gm.bomb.state === 'planted' && h.team === 'CT' && h.pos.distanceTo(Gm.bomb.pos) < 2.2) && !(h.inv.c4 && (M.zoneAt(h.pos.x, h.pos.z) === 'A' || M.zoneAt(h.pos.x, h.pos.z) === 'B'))) { if (Gm.clientMode) G.MP.use(); else if (!C.usePickup(h)) M.useDoor(h); } }
+    if (k === 'KeyE') { if (!(Gm.bomb.state === 'planted' && h.team === 'CT' && h.pos.distanceTo(Gm.bomb.pos) < 2.2) && !(h.inv.c4 && (M.zoneAt(h.pos.x, h.pos.z, h.pos.y) === 'A' || M.zoneAt(h.pos.x, h.pos.z, h.pos.y) === 'B'))) { if (Gm.clientMode) G.MP.use(); else if (!C.usePickup(h)) M.useDoor(h); } }
   });
   document.addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'Tab' && Gm.phase !== 'over') H.toggleScoreboard(false, Gm); });
   window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouseL = mouseR = false; });
@@ -534,7 +536,7 @@
     // dicas para o humano
     const h = Gm.human;
     if (h.alive) {
-      if (h.inv.c4 && M.zoneAt(h.pos.x, h.pos.z) && (M.zoneAt(h.pos.x, h.pos.z) === 'A' || M.zoneAt(h.pos.x, h.pos.z) === 'B') && h.planting <= 0 && Gm.phase === 'live') H.hint('Segure E para plantar a bomba');
+      if (h.inv.c4 && M.zoneAt(h.pos.x, h.pos.z, h.pos.y) && (M.zoneAt(h.pos.x, h.pos.z, h.pos.y) === 'A' || M.zoneAt(h.pos.x, h.pos.z, h.pos.y) === 'B') && h.planting <= 0 && Gm.phase === 'live') H.hint('Segure E para plantar a bomba');
       else if (h.team === 'CT' && Gm.bomb.state === 'planted' && h.pos.distanceTo(Gm.bomb.pos) < 2 && h.defusing <= 0) H.hint('Segure E para desarmar' + (h.kit ? ' (kit: 5 s)' : ' (10 s)'));
       else if (Gm.canBuy(h) && Gm.phase === 'freeze') H.hint(G.Touch && G.Touch.active ? 'Toque em $ para abrir a loja' : 'Pressione B para abrir a loja');
       else if (M.doorNear(h, 2.4)) H.hint('E: abrir / fechar porta');

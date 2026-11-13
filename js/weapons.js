@@ -122,4 +122,18 @@
   ];
   W.forCat = (cat, team) => defs.filter(d => (d.cat === cat || (cat === 'rifle' && d.cat === 'sniper')) && d.price > 0 && (d.team === 'both' || d.team === team));
   W.interval = d => 60 / (d.rpm || 60);
+  // Munição por carregador: a reserva é uma lista de pentes (`spare`); `reserve` continua existindo como total de balas.
+  const A = G.Ammo = {};
+  const chunk = (t, mag) => { const sp = []; if (mag > 0) { while (t > 0) { sp.push(Math.min(mag, t)); t -= mag; } } else if (t > 0) sp.push(t); return sp; };
+  A.attach = (inst) => {
+    const mag = inst.def.mag || 0; let spare = chunk(inst._r || 0, mag); delete inst._r;
+    Object.defineProperty(inst, 'spare', { get: () => spare, set: v => { spare = v; }, enumerable: false, configurable: true });
+    Object.defineProperty(inst, 'reserve', { get: () => spare.reduce((s, x) => s + x, 0), set: v => { spare = chunk(Math.max(0, Math.round(v)), mag); }, enumerable: true, configurable: true });
+    return inst;
+  };
+  A.mk = (def, ammo, reserve, extra) => A.attach(Object.assign({ def, ammo, _r: reserve, silencer: false, burst: false, zoom: 0 }, extra || {}));
+  // troca de carregador: entra o pente mais cheio; o que sobrou no pente velho volta para a reserva
+  A.swap = (inst) => { const sp = inst.spare; if (!sp.length) return false; sp.sort((a, b) => b - a); const m = sp.shift(); if (inst.ammo > 0) sp.push(inst.ammo); inst.ammo = m; return true; };
+  A.refill = (inst) => { if (!inst || !inst.def.mag) return; inst.ammo = inst.def.mag; inst.reserve = inst.def.reserve || 0; };
+  A.mags = (inst) => inst.spare.length;
 })();

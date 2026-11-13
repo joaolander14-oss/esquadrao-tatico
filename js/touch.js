@@ -138,7 +138,7 @@
     if (!root || !T.active) return;
     const g = Gm(), h = g.human; if (!h) return;
     $('tBuy').style.display = g.canBuy && g.canBuy(h) ? '' : 'none';
-    $('tUse').classList.toggle('hot', !!(G.Map.doorNear(h, 2.4) || (h.inv.c4 && /^[AB]$/.test(G.Map.zoneAt(h.pos.x, h.pos.z) || '')) || (h.team === 'CT' && g.bomb.state === 'planted' && h.pos.distanceTo(g.bomb.pos) < 2.2)));
+    $('tUse').classList.toggle('hot', !!(G.Map.doorNear(h, 2.4) || (h.inv.c4 && /^[AB]$/.test(G.Map.zoneAt(h.pos.x, h.pos.z, h.pos.y) || '')) || (h.team === 'CT' && g.bomb.state === 'planted' && h.pos.distanceTo(g.bomb.pos) < 2.2)));
     $('tNade').style.display = h.has('grenade') ? '' : 'none';
     root.classList.toggle('dead', !h.alive);
     const w = h.weapon(); $('tAim').style.display = w && (w.def.scope || w.def.silencer === true) ? '' : 'none';

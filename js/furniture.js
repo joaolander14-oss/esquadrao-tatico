@@ -393,6 +393,35 @@
   def('snowman', 0.95, 0.95, 1.75, 1, (p) => { const w = lam('snowW', { color: 0xf4f8fc }); p.sph(w, 0.42, 0, 0.42, 0); p.sph(w, 0.31, 0, 1.0, 0); p.sph(w, 0.23, 0, 1.45, 0); p.cyl(mt.orange(), 0.0, 0.05, 0.3, 0, 1.45, 0.3, Math.PI / 2, 0, 0, 6); p.cyl(mt.black(), 0.2, 0.2, 0.22, 0, 1.78, 0, 0, 0, 0, 10); });
   def('barrelRow', 2.4, 0.9, 1.0, 2, (p) => { for (let i = 0; i < 3; i++) { p.cyl(mt.orange(), 0.37, 0.37, 0.95, -0.8 + i * 0.8, 0.5, 0, 0, 0, 0, 12); p.cyl(mt.dark(), 0.38, 0.38, 0.05, -0.8 + i * 0.8, 0.8, 0, 0, 0, 0, 12); p.cyl(mt.dark(), 0.38, 0.38, 0.05, -0.8 + i * 0.8, 0.25, 0, 0, 0, 0, 12); } });
   def('sandbagWall', 3.0, 0.9, 1.1, 3, (p) => { const s = lam('sbag', { color: 0xb8a878 }); for (let r = 0; r < 3; r++) for (let i = 0; i < 5 - (r % 2); i++) p.sph(s, 0.32, -1.2 + i * 0.6 + (r % 2) * 0.3, 0.22 + r * 0.3, 0, 1.2, 0.55, 1.5); });
+  // torre de vigia (convés a 4,4 m, sobe-se por escada de mão) e base de concreto (convés a 2,6 m, sobe-se por degraus)
+  const twMat = (st) => st === 'stone' ? stoneW() : st === 'metal' ? lam('twMt', { color: 0x8a8e92, map: T('corrugated') }) : st === 'ruin' ? mossM() : st === 'ice' ? lam('twIc', { color: 0xe8eef4, map: T('planks') }) : mt.planks();
+  const twRoof = (st) => st === 'stone' ? lam('twRs', { color: 0xb86a3a, map: T('terracotta') }) : st === 'metal' ? mt.dark() : st === 'ice' ? lam('twRi', { color: 0xf0f4f8, map: T('roofSnow') }) : lam('twRw', { color: 0x9a4a2a, map: T('roofRed') });
+  def('watchTower', 3.4, 3.4, 4.4, 4, (p, o) => {
+    const st = o.style || 'wood', body = twMat(st);
+    p.box(body, 3.0, 4.1, 3.0, 0, 2.05, 0); p.box(mt.dark(), 3.1, 0.12, 3.1, 0, 1.4, 0); p.box(mt.dark(), 3.1, 0.12, 3.1, 0, 3.0, 0); p.box(body, 3.4, 0.3, 3.4, 0, 4.25, 0);
+    for (const [x, z] of [[-1.55, -1.55], [1.55, -1.55], [-1.55, 1.55], [1.55, 1.55]]) { p.box(mt.wood(), 0.1, 1.05, 0.1, x, 4.9, z); if (st !== 'ruin') p.box(mt.wood(), 0.12, 2.0, 0.12, x, 5.4, z); }
+    for (const z of [-1.55, 1.55]) { p.box(mt.wood(), 3.2, 0.07, 0.07, 0, 5.3, z); p.box(mt.wood(), 3.2, 0.07, 0.07, 0, 4.8, z); }
+    for (const x of [-1.55, 1.55]) { p.box(mt.wood(), 0.07, 0.07, 3.2, x, 5.3, 0); p.box(mt.wood(), 0.07, 0.07, 3.2, x, 4.8, 0); }
+    if (st !== 'ruin') p.cyl(twRoof(st), 0, 2.7, 1.1, 0, 7.0, 0, 0, Math.PI / 4, 0, 4);
+    for (const [x, z, ry] of [[0, 1.52, 0], [0, -1.52, 0], [1.52, 0, Math.PI / 2], [-1.52, 0, Math.PI / 2]]) p.box(mt.black(), 0.5, 0.7, 0.05, x, 2.4, z, 0, ry, 0);
+    const s = F.sign('VIGIA', '#2a2a2e', '#f0e0b0', null, 0.9, 0.4); s.position.set(0, 3.6, 1.52); p.loose.push(s);
+  });
+  def('baseBunker', 4.6, 4.6, 2.6, 4, (p, o) => {
+    const st = o.style || 'wood', body = st === 'ruin' ? mossM() : st === 'stone' ? stoneW() : mt.concrete();
+    p.box(body, 4.4, 2.4, 4.4, 0, 1.2, 0); p.box(body, 4.6, 0.2, 4.6, 0, 2.5, 0); p.box(mt.hazard(), 4.45, 0.14, 4.45, 0, 0.3, 0);
+    for (const s of [-1, 1]) { p.box(mt.black(), 1.2, 0.35, 0.05, s * 1.0, 1.7, 2.21); p.box(mt.black(), 1.2, 0.35, 0.05, s * 1.0, 1.7, -2.21); }
+    const sb = lam('sbag2', { color: 0xb8a878 }); for (const [x, z] of [[-2.0, -2.0], [2.0, -2.0], [-2.0, 2.0], [2.0, 2.0]]) for (let k = 0; k < 2; k++) p.sph(sb, 0.28, x, 2.75 + k * 0.3, z, 1.2, 0.6, 1.2);
+    p.box(mt.wood(), 0.08, 2.6, 0.08, 1.8, 3.8, -1.8); p.box(lam('flg', { color: [0x9a1a1a, 0x1a3a8a, 0x2a6a3a, 0xc89a2a][(o.n || 0) % 4] }), 0.9, 0.55, 0.03, 2.3, 4.8, -1.8);
+  });
+  // duto/bueiro de passagem (só visual: as colisões são três blocos ocos criados pelo mapa), 3 m de largura, 6 m de comprimento ao longo de z
+  def('ductTunnel', 3.0, 6.0, 2.8, 4, (p, o) => {
+    const st = o.style || 'metal', body = st === 'stone' ? stoneW() : st === 'ruin' ? mossM() : st === 'wood' ? mt.planks() : st === 'ice' ? mt.concrete() : lam('ductM', { color: 0x8a8e92, map: T('corrugated') });
+    p.box(body, 0.5, 2.8, 6.0, -1.25, 1.4, 0); p.box(body, 0.5, 2.8, 6.0, 1.25, 1.4, 0); p.box(body, 3.0, 0.6, 6.0, 0, 2.5, 0);
+    for (const z of [-2.6, -1.0, 1.0, 2.6]) { p.box(mt.dark(), 3.2, 3.0, 0.14, 0, 1.4, z); }
+    p.box(mt.hazard(), 3.0, 0.3, 0.05, 0, 0.15, 3.03); p.box(mt.hazard(), 3.0, 0.3, 0.05, 0, 0.15, -3.03);
+    p.box(mt.glow(0xffe8b0), 0.3, 0.05, 1.0, 0, 2.17, -1.6); p.box(mt.glow(0xffe8b0), 0.3, 0.05, 1.0, 0, 2.17, 1.6);
+    p.box(mt.black(), 1.2, 0.3, 0.04, 0, 1.7, -3.02);
+  });
   F.make = (kind, o) => {
     o = o || {}; const fn = B[kind]; if (!fn) return new THREE.Group();
     const p = new Part(); fn(p, o); return p.finish();

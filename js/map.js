@@ -24,12 +24,14 @@
     'j': { f: 1.0, mat: 'wall', cb: 2.3, ct: 7.0, window: true },     // janela: peitoril, vão de 1,3 m e parede acima
     'p': { f: 3.0, mat: 'upper' },                                    // plataforma alta / telhado acessível
     'h': { f: 1.1, mat: 'raise', low: true },                         // mureta de cobertura
+    'e': { f: 0, mat: 'pipe', cb: 3.0, ct: 3.8, pipe: true },                         // tubulação enterrável
+    'g': { f: 3.0, mat: 'upper', zone: 'A' },                                        // galeria elevada (bombsite A)
     'Y': { f: 0, mat: 'spawn', zone: 'T', cb: 4.2, ct: 5.0 }, 'Z': { f: 0, mat: 'spawn', zone: 'CT', cb: 4.2, ct: 5.0 },     // spawns cobertos (esgoto)
     'k': { f: -6, mat: 'pool', deadly: true, water: true, wy: 2.65 }  // piscina letal (líquido a 2,65 m do fundo); altura via fill(...,'k',h)
   };
   M.TYPES = TYPES;
   const DEFAULT_THEME = {
-    mats: { wall: 'plaster', roof: 'roofTop', ground: 'sand', ground2: 'sand', spawn: 'tiles', site: 'tiles', stair: 'stone', upper: 'planks', tunnel: 'concrete', slab: 'planks', raise: 'stone', ramp: 'stone', canal: 'stone', pool: 'darkTiles' },
+    mats: { wall: 'plaster', roof: 'roofTop', ground: 'sand', ground2: 'sand', spawn: 'tiles', site: 'tiles', stair: 'stone', upper: 'planks', tunnel: 'concrete', slab: 'planks', raise: 'stone', ramp: 'stone', canal: 'stone', pool: 'darkTiles', pipe: 'corrugated' },
     sky: ['#5f93c9', '#a9c6de', '#e8d6b4'], fog: 0xd9cbb0, fogNear: 70, fogFar: 230,
     hemi: [0xcfe0f5, 0xb99466, 0.72], sun: [0xfff0d6, 0.95], sunDir: [50, 90, -40],
     wallH: [5.5, 1.5, 3], window: 'shutter', winChance: 0.38, tintVar: 0.2, door: 'wood', gate: 0x6a7078,
@@ -69,6 +71,7 @@
     def.carve(fill, rampFill);
     if (def.carve2) def.carve2(fill, rampFill);
     const houseDoors = (def.houses === false || def.houses === 0) ? [] : autoHouses(fill, hOv, def.houses || 2);
+    autoPipes(fill, hOv);
     floor = M.floor = new Float32Array(W * H);
     corn = M.corn = new Float32Array(W * H * 4);
     ramp = M.ramp = new Uint8Array(W * H);
@@ -103,6 +106,7 @@
     def.props(papi);
     for (const d of houseDoors) papi.door(d.i, d.j, d.side, { kind: theme.door === 'metal' ? 'metal' : 'wood' });
     makeWindows(papi);
+    try { buildDeck(papi); } catch (e) { console.error('convés', e); }
     M.doors = props.filter(p => p.type === 'door');
     M.resetDoors();
     // navegação (portas não bloqueiam: os bots abrem)
@@ -112,10 +116,17 @@
       if (p.type === 'door') continue;
       for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
         const x = c(i), z = c(j);
-        if (x > p.x1 - 0.9 && x < p.x2 + 0.9 && z > p.z1 - 0.9 && z < p.z2 + 0.9 && p.y2 > floor[j * W + i] + 0.5) navBlocked[j * W + i] = 1;
+        if (x > p.x1 - 0.9 && x < p.x2 + 0.9 && z > p.z1 - 0.9 && z < p.z2 + 0.9 && p.y2 > floor[j * W + i] + 0.5 && p.y1 < floor[j * W + i] + 1.8) navBlocked[j * W + i] = 1;
       }
     }
-    const P = (i, j, yawDeg) => ({ x: c(i), z: c(j), yaw: (yawDeg || 0) * G.U.D2R });
+    // navegação do convés: células com laje, bloqueadas por props na altura do convés
+    M.deckBlk = null;
+    if (M.deckH) {
+      const dh = def.deck.h || 0; M.deckBlk = new Uint8Array(W * H);
+      for (let k = 0; k < W * H; k++) { if (isNaN(M.deckH[k])) continue; const x = c(k % W), z = c((k / W) | 0);
+        for (const p of props) { if (p.type === 'door' || p.deck) continue; if (p.y2 > dh + 0.5 && p.y1 < dh + 1.8 && x > p.x1 - 0.9 && x < p.x2 + 0.9 && z > p.z1 - 0.9 && z < p.z2 + 0.9) { M.deckBlk[k] = 1; break; } } }
+    }
+    const P = (i, j, yawDeg, y) => ({ x: c(i), z: c(j), yaw: (yawDeg || 0) * G.U.D2R, y });
     M.spots = def.spots(P);
     try { autoLadders(); } catch (e) { console.error('escadas', e); }
     if (G.Furn && def.furnish !== false) { try { autoFurnish(makePropApi()); } catch (e) { console.error('mobília', e); } }
@@ -193,7 +204,7 @@
     const sp = M.spots, pts = []; for (const k in sp) { const v = sp[k]; if (Array.isArray(v)) pts.push(...v); else if (v && v.x !== undefined) pts.push(v); else if (k === 'routes') for (const s in v) for (const r of v[s]) pts.push(...r); }
     const need = [...new Set(pts.map(p => M.cellIndex(p.x, p.z)).filter(k => k >= 0))];
     const tS = M.cellIndex(sp.tSpawn[0].x, sp.tSpawn[0].z), cS = M.cellIndex(sp.ctSpawn[0].x, sp.ctSpawn[0].z);
-    const ok = () => { const a = reachFrom(tS), b = reachFrom(cS); for (const k of need) if (!a[k] || !b[k]) return false; return a[cS] && b[tS]; };
+    const a0 = reachFrom(tS), b0 = reachFrom(cS), need2 = need.filter(k => a0[k] && b0[k]); const ok = () => { const a = reachFrom(tS), b = reachFrom(cS); for (const k of need2) if (!a[k] || !b[k]) return false; return (!a0[cS] || a[cS]) && (!b0[tS] || b[tS]); }; M.baseReach = (M.baseReach || []).concat([need.length - need2.length]);
     const dc = (M.doors || []).map(p => [(p.x1 + p.x2) / 2, (p.z1 + p.z2) / 2]);
     let n = 0;
     for (const e of list) {
@@ -227,8 +238,76 @@
     }
     M.setCount = n;
   }
+  // torres de vigia (escada de mão) e bases (degraus) em áreas abertas: lugares altos para subir em todos os mapas
+  function placeTowers(api) {
+    const want = def.towerCount === undefined ? 3 : def.towerCount; if (!want || !G.Furn) return;
+    const sp = M.spots, pts = []; for (const k in sp) { const v = sp[k]; if (Array.isArray(v)) pts.push(...v); else if (v && v.x !== undefined) pts.push(v); else if (k === 'routes') for (const s in v) for (const r of v[s]) pts.push(...r); }
+    const need = [...new Set(pts.map(p => M.cellIndex(p.x, p.z)).filter(k => k >= 0))];
+    const tS = M.cellIndex(sp.tSpawn[0].x, sp.tSpawn[0].z), cS = M.cellIndex(sp.ctSpawn[0].x, sp.ctSpawn[0].z);
+    const a0 = reachFrom(tS), b0 = reachFrom(cS), need2 = need.filter(k => a0[k] && b0[k]); const ok = () => { const a = reachFrom(tS), b = reachFrom(cS); for (const k of need2) if (!a[k] || !b[k]) return false; return (!a0[cS] || a[cS]) && (!b0[tS] || b[tS]); }; M.baseReach = (M.baseReach || []).concat([need.length - need2.length]);
+    const good = (i, j, base) => { const k = j * W + i; if (i < 1 || j < 1 || i >= W - 1 || j >= H - 1) return false; const t = TYPES[grid[k]] || {}; return !isWall[k] && !navBlocked[k] && !ramp[k] && !water[k] && !t.window && !t.low && !t.deadly && cb[k] > 900 && !zone[k] && Math.abs(floor[k] - base) < 0.05; };
+    const pc = pts.map(p => [Math.floor(p.x / S), Math.floor(p.z / S)]);
+    const cand = [];
+    for (let j = 3; j < H - 3; j++) for (let i = 3; i < W - 3; i++) {
+      const base = floor[j * W + i]; let all = true;
+      if (!good(i, j, base)) continue;
+      for (let dj = -1; dj <= 1 && all; dj++) for (let di = -1; di <= 1; di++) if (!good(i + di, j + dj, base)) { all = false; break; }
+      if (pc.some(([a, b]) => Math.max(Math.abs(a - i), Math.abs(b - j)) < 3)) continue;
+      cand.push({ i, j, base, h: G.U.hash2(i * 13 + 7, j * 17 + def.id.length * 5) + (all ? 0 : 2) });
+    }
+    cand.sort((p, q) => p.h - q.h);
+    const style = def.towerStyle || 'wood', placed = [];
+    for (const cd of cand) {
+      if (placed.length >= want) break;
+      if (placed.some(p => Math.max(Math.abs(p.i - cd.i), Math.abs(p.j - cd.j)) < 11)) continue;
+      const kind = placed.length % 2 === 0 ? 'watchTower' : 'baseBunker', cx = c(cd.i), cz = c(cd.j);
+      const SIDES = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+      let side = null; for (let q = 0; q < 4 && !side; q++) { const s = SIDES[(q + cd.i + cd.j) % 4]; if (good(cd.i + s[0] * 2, cd.j + s[1] * 2, cd.base)) side = s; }
+      if (!side) continue;
+      const n0 = props.length, l0 = M.ladders.length;
+      const p0 = api.furn(kind, cx, cz, 0, { style, n: placed.length });
+      if (kind === 'watchTower') M.addLadderRaw(cx + side[0] * (1.7 + 0.14), cz + side[1] * (1.7 + 0.14), -side[0], -side[1], cd.base, cd.base + 4.4);
+      else {
+        for (let q = 0; q < 5; q++) {
+          const d = 2.3 + 0.35 + q * 0.6, h = 2.5 - q * 0.5, sx = side[0] ? 0.6 : 2.2, sz = side[1] ? 0.6 : 2.2;
+          api.prop(cx + side[0] * d, cz + side[1] * d, sx, h, sz, 'block', cd.base, { tex: 'concrete', color: 0xb8b4aa });
+        }
+      }
+      const changed = [];
+      for (let q = n0; q < props.length; q++) { const p = props[q];
+        for (let jj = Math.max(0, cd.j - 4); jj <= Math.min(H - 1, cd.j + 4); jj++) for (let ii = Math.max(0, cd.i - 4); ii <= Math.min(W - 1, cd.i + 4); ii++) {
+          const kk = jj * W + ii, x = c(ii), z = c(jj);
+          if (!navBlocked[kk] && x > p.x1 - 0.9 && x < p.x2 + 0.9 && z > p.z1 - 0.9 && z < p.z2 + 0.9 && p.y2 > floor[kk] + 0.5) { navBlocked[kk] = 1; changed.push(kk); }
+        } }
+      if (changed.length && !ok()) { for (const kk of changed) navBlocked[kk] = 0; props.length = n0; M.ladders.length = l0; continue; }
+      placed.push(cd);
+    }
+    M.towerCount = placed.length;
+    // dutos/bueiros de passagem: dá para entrar e atravessar (três blocos ocultos formam as paredes e o teto)
+    M.ducts = [];
+    const wantD = def.ductCount === undefined ? 2 : def.ductCount, dcand = [];
+    for (let j = 3; j < H - 4; j++) for (let i = 3; i < W - 4; i++) for (const ax of ['z', 'x']) {
+      const base = floor[j * W + i]; if (!good(i, j, base)) continue;
+      const dx = ax === 'x' ? 1 : 0, dz = ax === 'z' ? 1 : 0; let all = true;
+      for (let a = -1; a <= 2 && all; a++) for (let b = -1; b <= 1; b++) { const ii = i + dx * a + dz * b, jj = j + dz * a + dx * b; if (!good(ii, jj, base)) { all = false; break; } }
+      if (!all || pc.some(([a, b]) => Math.max(Math.abs(a - i), Math.abs(b - j)) < 3) || placed.some(p => Math.max(Math.abs(p.i - i), Math.abs(p.j - j)) < 6)) continue;
+      dcand.push({ i, j, ax, base, h: G.U.hash2(i * 29 + 5, j * 31 + (ax === 'x' ? 7 : 3)) });
+    }
+    dcand.sort((p, q) => p.h - q.h);
+    for (const cd of dcand) {
+      if (M.ducts.length >= wantD) break;
+      if (M.ducts.some(p => Math.max(Math.abs(p.i - cd.i), Math.abs(p.j - cd.j)) < 9)) continue;
+      const along = cd.ax === 'z', cx = along ? c(cd.i) : cd.i * S + S, cz = along ? cd.j * S + S : c(cd.j), b = cd.base;
+      const hid = (x1, x2, z1, z2, y1, y2) => { const q = api.prop((x1 + x2) / 2, (z1 + z2) / 2, x2 - x1, y2 - y1, z2 - z1, 'hidden', y1); q.pen = 4; return q; };
+      if (along) { hid(cx - 1.5, cx - 1.0, cz - 3, cz + 3, b, b + 2.8); hid(cx + 1.0, cx + 1.5, cz - 3, cz + 3, b, b + 2.8); hid(cx - 1.5, cx + 1.5, cz - 3, cz + 3, b + 2.2, b + 2.8); }
+      else { hid(cx - 3, cx + 3, cz - 1.5, cz - 1.0, b, b + 2.8); hid(cx - 3, cx + 3, cz + 1.0, cz + 1.5, b, b + 2.8); hid(cx - 3, cx + 3, cz - 1.5, cz + 1.5, b + 2.2, b + 2.8); }
+      const vis = api.furn('ductTunnel', cx, cz, along ? 0 : 90, { style: def.towerStyle || 'metal', y: b }); vis.off = true;
+      M.ducts.push(cd);
+    }
+  }
   function autoFurnish(api) {
     placeSetPieces(api);
+    placeTowers(api);
     const sty = G.Detail && G.Detail.styles ? Object.assign({}, G.Detail.styles.default, G.Detail.styles[def.id] || {}) : {};
     const lib = def.furnLib || FURN_LIB[sty.furn]; if (!lib) return;
     const dens = def.furnDens || sty.furnDens || 0.12, hash = G.U.hash2, sp = M.spots;
@@ -237,7 +316,7 @@
     const tS = M.cellIndex(sp.tSpawn[0].x, sp.tSpawn[0].z), cS = M.cellIndex(sp.ctSpawn[0].x, sp.ctSpawn[0].z);
     const dc = (M.doors || []).map(p => [(p.x1 + p.x2) / 2, (p.z1 + p.z2) / 2]);
     const free = k => k >= 0 && !isWall[k] && !navBlocked[k] && !ramp[k] && !water[k] && !(TYPES[grid[k]] || {}).window && !(TYPES[grid[k]] || {}).low;
-    const ok = () => { const a = reachFrom(tS), b = reachFrom(cS); for (const k of need) if (!a[k] || !b[k]) return false; return a[cS] && b[tS]; };
+    const a0 = reachFrom(tS), b0 = reachFrom(cS), need2 = need.filter(k => a0[k] && b0[k]); const ok = () => { const a = reachFrom(tS), b = reachFrom(cS); for (const k of need2) if (!a[k] || !b[k]) return false; return (!a0[cS] || a[cS]) && (!b0[tS] || b[tS]); }; M.baseReach = (M.baseReach || []).concat([need.length - need2.length]);
     const SIDES = [[1, 0], [-1, 0], [0, 1], [0, -1]];
     let placed = 0;
     for (let j = 1; j < H - 1; j++) for (let i = 1; i < W - 1; i++) {
@@ -283,6 +362,39 @@
     M.furnCount = placed;
   }
 
+  // ---------------- Tubulações enterráveis: atravessam paredes grossas ligando duas áreas abertas ----------------
+  function autoPipes(fill, hOv) {
+    const want = def.pipeCount === undefined ? 3 : def.pipeCount; M.pipes = []; if (!want) return;
+    const flOf = k => { const t = TYPES[grid[k]]; return isNaN(hOv[k]) ? (t ? t.f : 0) : hOv[k]; };
+    const open = (i, j) => { if (i < 2 || j < 2 || i >= W - 2 || j >= H - 2) return false; const ch = grid[j * W + i]; return ch === '.' || ch === ','; };
+    const wall = (i, j) => i > 0 && j > 0 && i < W - 1 && j < H - 1 && grid[j * W + i] === '#';
+    const nearSpawn = (i, j) => { for (let dj = -5; dj <= 5; dj++) for (let di = -5; di <= 5; di++) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= W || jj >= H) continue; const t = TYPES[grid[jj * W + ii]]; if (t && (t.zone === 'T' || t.zone === 'CT' || t.zone === 'A' || t.zone === 'B')) return true; } return false; };
+    const cand = [];
+    for (let j = 3; j < H - 3; j++) for (let i = 3; i < W - 3; i++) {
+      if (!wall(i, j)) continue;
+      // faixa horizontal [i, i+len) na linha j
+      for (const axis of ['x', 'z']) {
+        const dx = axis === 'x' ? 1 : 0, dz = axis === 'z' ? 1 : 0;
+        if (wall(i - dx, j - dz)) continue;                                        // só começa no início da parede
+        let len = 0; while (len < 8 && wall(i + dx * len, j + dz * len)) len++;
+        if (len < 1 || len > 7) continue;
+        const a = [i - dx, j - dz], b = [i + dx * len, j + dz * len];
+        if (!open(a[0], a[1]) || !open(b[0], b[1])) continue;
+        if (Math.abs(flOf(a[1] * W + a[0]) - flOf(b[1] * W + b[0])) > 0.05) continue;
+        let thick = true; for (let q = 0; q < len; q++) { const x = i + dx * q, z = j + dz * q; if (!wall(x + dz, z + dx) || !wall(x - dz, z - dx)) thick = false; }
+        if (!thick || nearSpawn(i, j) || nearSpawn(b[0], b[1])) continue;
+        cand.push({ i, j, len, dx, dz, h: G.U.hash2(i * 19 + 3 + len, j * 23 + dx) });
+      }
+    }
+    cand.sort((p, q) => (p.len < 2 ? 3 : 0) + p.h - ((q.len < 2 ? 3 : 0) + q.h));
+    M.pipeCand = cand.length;
+    for (const cd of cand) {
+      if (M.pipes.length >= want) break;
+      if (M.pipes.some(p => Math.hypot(p.i - cd.i, p.j - cd.j) < 8)) continue;
+      fill(cd.i, cd.j, cd.i + cd.dx * (cd.len - 1), cd.j + cd.dz * (cd.len - 1), 'e', flOf((cd.j - cd.dz) * W + cd.i - cd.dx));
+      M.pipes.push(cd);
+    }
+  }
   // ---------------- Casas que dá para entrar (blocos de parede viram sala com porta e janelas) ----------------
   function autoHouses(fill, hOv, maxN) {
     const used = new Uint8Array(W * H), out = [];
@@ -390,7 +502,11 @@
   M.ladders = [];
   function autoLadders() {
     LADDER.clear(); M.ladders = [];
-    const want = def.ladderCount === undefined ? 4 : def.ladderCount; if (!want) return;
+    for (const e of def.ladders || []) {
+      const di = e[2] === 'E' ? 1 : e[2] === 'W' ? -1 : 0, dj = e[2] === 'S' ? 1 : e[2] === 'N' ? -1 : 0, k0 = e[1] * W + e[0], nk0 = (e[1] + dj) * W + e[0] + di;
+      if (nk0 >= 0 && nk0 < W * H) addLadder(k0, nk0, di, dj, c(e[0]) + di * (S / 2 - 0.14), c(e[1]) + dj * (S / 2 - 0.14));
+    }
+    const want = def.ladderCount === undefined ? 4 : def.ladderCount; if (!want && !(def.ladders || []).length) return;
     const ok = k => !isWall[k] && !navBlocked[k] && !ramp[k] && !water[k] && !(TYPES[grid[k]] || {}).window && !(TYPES[grid[k]] || {}).low;
     const cand = [];
     for (let j = 1; j < H - 1; j++) for (let i = 1; i < W - 1; i++) {
@@ -413,6 +529,49 @@
       addLadder(cd.k, cd.nk, cd.di, cd.dj, x, z);
     }
   }
+  // ---------------- Convés: segundo nível sobre a mesma área (laje, guarda-corpo, escadas) ----------------
+  function buildDeck(api) {
+    M.deckH = null; M.deckLinkMap = null; const D = def.deck; if (!D) return;
+    const h = D.h || 0, th = D.th || 0.3, dk = M.deckH = new Float32Array(W * H).fill(NaN);
+    for (const r of D.rects) for (let j = r[1]; j <= r[3]; j++) for (let i = r[0]; i <= r[2]; i++) dk[j * W + i] = h;
+    for (let j = 0; j < H; j++) {
+      let i = 0;
+      while (i < W) {
+        if (isNaN(dk[j * W + i])) { i++; continue; }
+        let i2 = i; while (i2 + 1 < W && !isNaN(dk[j * W + i2 + 1])) i2++;
+        api.prop((i + i2 + 1) * S / 2, c(j), (i2 - i + 1) * S, th, S, 'block', h - th, { tex: D.tex || 'steelPlate', color: D.color || 0xa8acb0, deck: true });
+        i = i2 + 1;
+      }
+    }
+    // escadas
+    const links = M.deckLinkMap = new Map(), skip = new Set();
+    for (const st of D.stairs || []) {
+      const [ti, tj] = st.top, dir = st.dir, dx = dir === 'E' ? 1 : dir === 'W' ? -1 : 0, dz = dir === 'S' ? 1 : dir === 'N' ? -1 : 0;
+      const ex = dx > 0 ? (ti + 1) * S : dx < 0 ? ti * S : c(ti), ez = dz > 0 ? (tj + 1) * S : dz < 0 ? tj * S : c(tj);
+      const n = st.n || 6, run = st.run || 0.6, w = st.w || 2.4;
+      for (let q = 0; q < n; q++) {
+        const t0 = q * run + run / 2, cx = ex + dx * t0, cz = ez + dz * t0, base = st.base !== undefined ? st.base : M.heightAt(cx, cz), y2 = h - 0.5 * q;
+        api.prop(cx, cz, dx ? run + 0.02 : w, y2 - base, dx ? w : run + 0.02, 'block', base, { tex: 'steelPlate', color: 0x8e9296 });
+      }
+      skip.add(ti + ',' + tj + ',' + dir);
+      const bk = st.bottom[1] * W + st.bottom[0], tk = tj * W + ti + W * H;
+      if (!links.has(bk)) links.set(bk, []); if (!links.has(tk)) links.set(tk, []);
+      links.get(bk).push(tk); links.get(tk).push(bk);
+    }
+    // guarda-corpo (mureta) onde a laje termina sobre um vão
+    const rm = { tex: 'concrete', color: 0xb4b0a6 };
+    for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+      if (isNaN(dk[j * W + i])) continue;
+      for (const [dx, dz, dir] of [[1, 0, 'E'], [-1, 0, 'W'], [0, 1, 'S'], [0, -1, 'N']]) {
+        const ni = i + dx, nj = j + dz; if (ni < 0 || nj < 0 || ni >= W || nj >= H) continue;
+        const nk = nj * W + ni; if (!isNaN(dk[nk]) || isWall[nk] || floor[nk] >= h - 1.0 || skip.has(i + ',' + j + ',' + dir)) continue;
+        const x = c(i) + dx * (S / 2 - 0.1), z = c(j) + dz * (S / 2 - 0.1);
+        api.prop(x, z, dx ? 0.2 : S, 1.1, dx ? S : 0.2, 'block', h, rm);
+      }
+    }
+  }
+  // escada solta (em torres/bases feitas de props): não entra na navegação dos bots
+  M.addLadderRaw = (x, z, di, dj, y0, y1) => { const hw = 0.42; const l = { x, z, dx: di, dz: dj, y0, y1, x1: x - (di ? 0.12 : hw), x2: x + (di ? 0.12 : hw), z1: z - (dj ? 0.12 : hw), z2: z + (dj ? 0.12 : hw), k: -1, nk: -1 }; M.ladders.push(l); return l; };
   function addLadder(k, nk, di, dj, x, z) {
     const y0 = floor[k], y1 = floor[nk], hw = 0.42;
     const l = { x, z, dx: di, dz: dj, y0, y1, x1: x - (di ? 0.12 : hw), x2: x + (di ? 0.12 : hw), z1: z - (dj ? 0.12 : hw), z2: z + (dj ? 0.12 : hw), k, nk };
@@ -429,7 +588,7 @@
   };
 
   M.cellIndex = (x, z) => { const i = Math.floor(x / S), j = Math.floor(z / S); if (i < 0 || j < 0 || i >= W || j >= H) return -1; return j * W + i; };
-  M.zoneAt = (x, z) => { const k = M.cellIndex(x, z); return k < 0 ? null : zone[k]; };
+  M.zoneAt = (x, z, y) => { const k = M.cellIndex(x, z); if (k < 0) return null; if (M.deckH && y !== undefined && !isNaN(M.deckH[k]) && y > M.deckH[k] - 1.2) return (def.deck && def.deck.zone) || zone[k]; return zone[k]; };
   M.siteCenter = s => s === 'A' ? M.spots.A : M.spots.B;
   M.isBuyZone = (x, z, team) => { const k = M.cellIndex(x, z); return k >= 0 && !!(team === 'T' ? buyT : buyCT)[k]; };
   // morre quem entra no líquido de uma célula letal ('k')
@@ -464,7 +623,7 @@
     for (const p of props) if (!p.off && p.x2 > x1 && p.x1 < x2 && p.z2 > z1 && p.z1 < z2) out.push(p.y1, p.y2);
     return out;
   };
-  M.groundAt = (x, z) => { const k = M.cellIndex(x, z); let g = k < 0 ? 0 : hAtK(k, x, z); for (const p of props) if (!p.off && x > p.x1 && x < p.x2 && z > p.z1 && z < p.z2 && p.y2 > g && p.y2 < g + 4) g = p.y2; return g; };
+  M.groundAt = (x, z) => { const k = M.cellIndex(x, z); let g = k < 0 ? 0 : hAtK(k, x, z); for (const p of props) if (!p.off && x > p.x1 && x < p.x2 && z > p.z1 && z < p.z2 && p.y2 > g && p.y2 < g + 4 && p.y1 < g + 2.0) g = p.y2; return g; };
   M.pointSolid = (x, y, z) => {
     const k = M.cellIndex(x, z);
     if (k < 0) return true;
@@ -704,42 +863,63 @@
   };
 
   // ---------------- Navegação (A* na grade) ----------------
-  function canStep(a, b) { const dh = floor[b] - floor[a]; return !navBlocked[b] && (dh <= 0.56 || ((ramp[a] || ramp[b]) && dh <= 0.95) || LADDER.has(a * 65536 + b)); }
+  function canStep(a, b) { const dh = floor[b] - floor[a]; if (dh < -0.9 && M.deckH && !isNaN(M.deckH[b])) return false; return !navBlocked[b] && (dh <= 0.56 || ((ramp[a] || ramp[b]) && dh <= 0.95) || LADDER.has(a * 65536 + b)); }
   const DIRS = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
-  M.findPath = (sx, sz, tx, tz) => {
+  M.findPath = (sx, sz, tx, tz, sy, ty) => {
+    const N = W * H, deck = M.deckH, dblk = M.deckBlk;
     let s = M.cellIndex(sx, sz), t = M.cellIndex(tx, tz);
     if (s < 0 || t < 0) return null;
-    if (navBlocked[s]) s = nearestFree(s);
-    if (navBlocked[t]) t = nearestFree(t);
+    const pick = (k, y) => (deck && y !== undefined && !isNaN(deck[k]) && Math.abs(y - deck[k]) < Math.abs(y - floor[k])) ? k + N : k;
+    s = pick(s, sy); t = pick(t, ty);
+    const blk = n => n >= N ? dblk[n - N] : navBlocked[n];
+    const nf = n => {
+      const L = n >= N ? N : 0, k = n - L, ci = k % W, cj = (k / W) | 0;
+      for (let r = 1; r < 6; r++) for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
+        const i = ci + di, j = cj + dj; if (i < 0 || j < 0 || i >= W || j >= H) continue;
+        const q = j * W + i; if (L ? (!isNaN(deck[q]) && !dblk[q]) : !navBlocked[q]) return q + L;
+      }
+      return -1;
+    };
+    if (blk(s)) s = nf(s);
+    if (blk(t)) t = nf(t);
     if (s < 0 || t < 0) return null;
-    const g = new Float32Array(W * H).fill(1e9), from = new Int32Array(W * H).fill(-1), closed = new Uint8Array(W * H);
+    const SZ = deck ? N * 2 : N;
+    const g = new Float32Array(SZ).fill(1e9), from = new Int32Array(SZ).fill(-1), closed = new Uint8Array(SZ);
     const open = [s]; g[s] = 0;
-    const ti = t % W, tj = (t / W) | 0;
-    const hf = k => { const dx = Math.abs(k % W - ti), dz = Math.abs(((k / W) | 0) - tj); return Math.max(dx, dz) + 0.414 * Math.min(dx, dz); };
-    const f = new Float32Array(W * H).fill(1e9); f[s] = hf(s);
+    const tk = t % N, ti = tk % W, tj = (tk / W) | 0;
+    const hf = n => { const k = n % N, dx = Math.abs(k % W - ti), dz = Math.abs(((k / W) | 0) - tj); return Math.max(dx, dz) + 0.414 * Math.min(dx, dz); };
+    const f = new Float32Array(SZ).fill(1e9); f[s] = hf(s);
+    const dok = q => !isNaN(deck[q]) && !dblk[q];
+    const links = M.deckLinkMap;
+    let cur = -1, ck = 0, ci = 0, cj = 0, L = 0;
+    const relax = (nn, cost) => { const ng = g[cur] + cost + (nn < N && cb[nn] < 900 ? 0.05 : 0) + (nn < N && water[nn] ? 0.4 : 0); if (ng < g[nn]) { g[nn] = ng; from[nn] = cur; f[nn] = ng + hf(nn); open.push(nn); } };
     while (open.length) {
       let bi = 0; for (let q = 1; q < open.length; q++) if (f[open[q]] < f[open[bi]]) bi = q;
-      const cur = open[bi]; open[bi] = open[open.length - 1]; open.pop();
+      cur = open[bi]; open[bi] = open[open.length - 1]; open.pop();
       if (cur === t) break;
       if (closed[cur]) continue;
       closed[cur] = 1;
-      const ci = cur % W, cj = (cur / W) | 0;
+      L = cur >= N ? 1 : 0; ck = cur - L * N; ci = ck % W; cj = (ck / W) | 0;
       for (const [dx, dz, cost] of DIRS) {
         const ni = ci + dx, nj = cj + dz;
         if (ni < 0 || nj < 0 || ni >= W || nj >= H) continue;
-        const nk = nj * W + ni;
-        if (closed[nk] || !canStep(cur, nk)) continue;
-        if (dx && dz && (!canStep(cur, cj * W + ni) || !canStep(cur, nj * W + ci))) continue;
-        const ng = g[cur] + cost + (cb[nk] < 900 ? 0.05 : 0) + (water[nk] ? 0.4 : 0);
-        if (ng < g[nk]) { g[nk] = ng; from[nk] = cur; f[nk] = ng + hf(nk); open.push(nk); }
+        const nk = nj * W + ni, diag = dx && dz;
+        if (!L) {
+          if (!closed[nk] && canStep(ck, nk) && !(diag && (!canStep(ck, cj * W + ni) || !canStep(ck, nj * W + ci)))) relax(nk, cost);
+          if (deck && !diag && dok(nk) && !closed[nk + N] && !navBlocked[ck] && Math.abs(deck[nk] - floor[ck]) <= 0.56) relax(nk + N, cost + 0.5);
+        } else {
+          if (dok(nk) && !closed[nk + N] && !(diag && (!dok(cj * W + ni) || !dok(nj * W + ci)))) relax(nk + N, cost);
+          if (!diag && !navBlocked[nk] && !closed[nk] && Math.abs(floor[nk] - deck[ck]) <= 0.56 && isNaN(deck[nk])) relax(nk, cost + 0.5);
+        }
       }
+      if (links) { const lk = links.get(cur); if (lk) for (const nn of lk) if (!closed[nn]) relax(nn, 8); }
     }
     if (from[t] < 0 && s !== t) return null;
     const cells = [];
     for (let k = t; k >= 0; k = from[k]) { cells.push(k); if (k === s) break; }
     cells.reverse();
-    const pts = cells.map(k => new THREE.Vector3(c(k % W), floor[k], c((k / W) | 0)));
-    pts[pts.length - 1].set(tx, M.groundAt(tx, tz), tz);
+    const pts = cells.map(n => { const L2 = n >= N ? 1 : 0, k = n - L2 * N, v = new THREE.Vector3(c(k % W), L2 ? deck[k] : floor[k], c((k / W) | 0)); v.d = L2; return v; });
+    pts[pts.length - 1].set(tx, t >= N ? deck[t - N] : M.groundAt(tx, tz), tz);
     return smooth(new THREE.Vector3(sx, 0, sz), pts);
   };
   function nearestFree(k) {
@@ -753,7 +933,7 @@
   function pointOK(x, z) {
     const k = M.cellIndex(x, z); if (k < 0 || isWall[k]) return false;
     const fl = hAtK(k, x, z);
-    for (const p of props) if (p.type !== 'door' && x > p.x1 - 0.5 && x < p.x2 + 0.5 && z > p.z1 - 0.5 && z < p.z2 + 0.5 && p.y2 > fl + 0.45) return false;
+    for (const p of props) if (p.type !== 'door' && x > p.x1 - 0.5 && x < p.x2 + 0.5 && z > p.z1 - 0.5 && z < p.z2 + 0.5 && p.y2 > fl + 0.45 && p.y1 < fl + 1.8) return false;
     return true;
   }
   M.walkLine = (a, b) => {
@@ -775,8 +955,11 @@
     const out = [];
     let cur = start, i = 0;
     while (i < pts.length) {
+      const d = pts[i].d || 0;
+      if (i > 0 && (pts[i - 1].d || 0) !== d) { out.push(pts[i]); cur = pts[i]; i++; continue; }   // troca de camada: sem atalhos
+      let end = i; while (end + 1 < pts.length && (pts[end + 1].d || 0) === d) end++;
       let far = i;
-      for (let q = pts.length - 1; q > i; q--) if (M.walkLine(cur, pts[q])) { far = q; break; }
+      if (!d) for (let q = end; q > i; q--) if (M.walkLine(cur, pts[q])) { far = q; break; }
       out.push(pts[far]); cur = pts[far]; i = far + 1;
     }
     return out;
@@ -963,8 +1146,8 @@
       const key = p.type + ':' + (p.color || '') + ':' + (p.tex || '') + ':' + (p.kind || '');
       if (matCache[key]) return matCache[key];
       let m;
-      if (p.type === 'crate') m = new THREE.MeshLambertMaterial({ map: G.Tex.get('wood') });
-      else if (p.type === 'barrel') m = new THREE.MeshLambertMaterial({ map: G.Tex.get('metal'), color: p.color || 0x9a5a3a });
+      if (p.type === 'crate') m = new THREE.MeshLambertMaterial({ map: G.Tex.get(theme.crateTex || 'wood'), color: theme.crateColor || 0xffffff });
+      else if (p.type === 'barrel') m = new THREE.MeshLambertMaterial({ map: G.Tex.get('metal'), color: p.color || theme.barrelColor || 0x9a5a3a });
       else if (p.type === 'car') m = new THREE.MeshLambertMaterial({ map: G.Tex.get('car'), color: p.color || 0xffffff });
       else if (p.type === 'container') m = new THREE.MeshLambertMaterial({ map: G.Tex.get('container'), color: p.color || 0xb04030 });
       else if (p.type === 'block') m = new THREE.MeshLambertMaterial({ map: G.Tex.get(p.tex || 'concrete'), color: p.color || 0xffffff });
@@ -980,7 +1163,7 @@
       if (p.type === 'window') {
         const wsx = p.x2 - p.x1, wsy = p.y2 - p.y1, wsz = p.z2 - p.z1;
         const gm = new THREE.Group(); gm.position.set((p.x1 + p.x2) / 2, (p.y1 + p.y2) / 2, (p.z1 + p.z2) / 2); gm.userData.y0 = gm.position.y;
-        const glassM = new THREE.MeshPhongMaterial({ color: 0x9ac4d8, transparent: true, opacity: 0.3, shininess: 140, specular: 0xffffff, depthWrite: false });
+        const glassM = new THREE.MeshPhongMaterial({ color: def.glassColor || 0x9ac4d8, transparent: true, opacity: 0.3, shininess: 140, specular: 0xffffff, depthWrite: false });
         const gl = new THREE.Mesh(new THREE.BoxGeometry(wsx * 0.9, wsy, wsz * 0.9 > 0.05 ? wsz * 0.9 : wsz), glassM); gl.renderOrder = 3; gm.add(gl);
         const fr = new THREE.MeshLambertMaterial({ color: 0xe8e4dc });
         const ax = p.axisX, L = ax ? wsz : wsx;
@@ -1066,6 +1249,17 @@
         const H2 = l.y1 - l.y0 + 1.0, cx = l.x, cz = l.z, ax = l.dx !== 0;
         for (const s of [-1, 1]) { const r = new THREE.Mesh(new THREE.BoxGeometry(0.05, H2, 0.05), lm); r.position.set(cx + (ax ? 0 : s * 0.24), l.y0 + H2 / 2, cz + (ax ? s * 0.24 : 0)); r.castShadow = true; group.add(r); }
         for (let y = l.y0 + 0.3; y < l.y1 + 0.95; y += 0.3) { const rg = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.48, 6), y > l.y1 ? ym : lm); rg.rotation.set(ax ? Math.PI / 2 : 0, 0, ax ? 0 : Math.PI / 2); rg.position.set(cx, y, cz); group.add(rg); }
+      } }
+    // tubulações enterráveis: anéis de reforço, bocas flangeadas e luzes
+    { const ringM = new THREE.MeshLambertMaterial({ color: 0x7a6a58, map: G.Tex.get('metal', 128) }), mouthM = new THREE.MeshLambertMaterial({ color: 0x8a5a3a, map: G.Tex.get('metal', 128) });
+      for (let j = 1; j < H - 1; j++) for (let i = 1; i < W - 1; i++) {
+        const k = j * W + i; if (grid[k] !== 'e') continue;
+        const axX = !isWall[k - 1] && !isWall[k + 1], x0 = i * S + S / 2, z0 = j * S + S / 2, y0 = floor[k] + 1.5;
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(1.62, 0.07, 6, 18), ringM); ring.position.set(x0, y0, z0); if (axX) ring.rotation.y = Math.PI / 2; group.add(ring);
+        for (const s of [-1, 1]) {
+          const ni = axX ? i + s : i, nj = axX ? j : j + s; if (grid[nj * W + ni] === 'e') continue;
+          const m = new THREE.Mesh(new THREE.TorusGeometry(1.9, 0.24, 8, 22), mouthM); m.position.set(axX ? x0 + s * 1.5 : x0, y0, axX ? z0 : z0 + s * 1.5); if (axX) m.rotation.y = Math.PI / 2; m.castShadow = true; group.add(m);
+        }
       } }
     // letras dos bombsites (no chão) + extras do mapa
     function letter(L, x, y, z, rotX, rotY, size) {

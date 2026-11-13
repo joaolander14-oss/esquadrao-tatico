@@ -25,7 +25,7 @@
       this.alive = true;
       this.giveDefaultPistol();
     }
-    inst(def) { return { def, ammo: def.mag || 0, reserve: def.reserve || 0, silencer: def.silencer === true, burst: false, zoom: 0 }; }
+    inst(def) { return G.Ammo.mk(def, def.mag || 0, def.reserve || 0, { silencer: def.silencer === true }); }
     giveDefaultPistol() { this.inv.secondary = this.inst(this.team === 'T' ? G.W.vespa : G.W.guardiao); }
     // chamado a cada início de rodada
     spawn(p, yaw) {
