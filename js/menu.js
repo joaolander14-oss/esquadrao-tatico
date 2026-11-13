@@ -269,7 +269,7 @@
         const p = Mn.preview; if (!p) return;
         p.raf = requestAnimationFrame(loop);
         p.t += 0.016;
-        if (p.obj) { p.obj.rotation.y = Math.sin(p.t * 0.5) * 0.9 + Math.PI / 2 * 0; const gu = p.obj.children[0]; if (gu && gu.userData.anim) gu.userData.anim({ inspect: (p.t % 4) / 4, draw: 0 }); }
+        if (p.obj) { p.obj.rotation.y = Math.sin(p.t * 0.5) * 0.9 + Math.PI / 2 * 0; const gu = p.obj.children[0]; if (gu && gu.userData.anim) { const ph = (p.t % 7) / 3; gu.userData.anim({ inspect: ph < 1 ? ph : -1, draw: ph > 1.55 && ph < 1.9 ? (1.9 - ph) / 0.35 : 0 }); } }
         p.r.render(p.sc, p.cam);
       };
       loop();

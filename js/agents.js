@@ -496,9 +496,10 @@
       hand(gun, -0.035, -0.06, 0.015, -1, [-0.18, -0.12, 0.45]);
     }
     g.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
-    g.scale.setScalar(0.5);
+    g.scale.setScalar(def.cat === 'knife' ? 0.62 : 0.5);
     gun.rotation.y = 0.05;
-    const base = def.cat === 'pistol' ? [0.085, -0.09, -0.22] : def.cat === 'knife' ? [0.1, -0.1, -0.2] : isNade ? [0.1, -0.1, -0.2] : [0.085, -0.085, -0.19];
+    if (def.cat === 'knife') { const tl = gun.userData.vmTilt; gun.rotation.set(tl === undefined ? 0.42 : tl, 0.3, -0.1); }      // lâmina inclinada para cima e para o centro
+    const base = def.cat === 'pistol' ? [0.085, -0.09, -0.22] : def.cat === 'knife' ? [0.07, -0.05, -0.27] : isNade ? [0.1, -0.1, -0.2] : [0.085, -0.085, -0.19];
     g.userData.base = new THREE.Vector3(...base);
     g.userData.gun = gun;
     g.userData.muzzle = gun.userData.muzzle;
