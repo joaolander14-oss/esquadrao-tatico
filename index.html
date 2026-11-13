@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#11151b">
+<title>Esquadrão Tático</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="css/style.css?v=52">
+<link rel="stylesheet" href="css/menu.css?v=52">
+</head>
+<body>
+<div id="game"></div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <canvas id="radar" width="440" height="440"></canvas>
+  <div id="money"><span class="cur">$</span><span id="moneyVal">800</span><div id="moneyDelta"></div></div>
+  <div id="topbar">
+    <div class="alive" id="aliveT"></div>
+    <div class="score t" id="scoreT">0</div>
+    <div class="timer" id="timer">1:55</div>
+    <div class="score ct" id="scoreCT">0</div>
+    <div class="alive" id="aliveCT"></div>
+  </div>
+  <div id="roundInfo"></div>
+  <div id="killfeed"></div>
+  <div id="crosshair"></div>
+  <div id="hitmarker"></div>
+  <div id="dmgIndicators"></div>
+  <div id="vitals">
+    <div class="vital"><span class="ico">✚</span><span id="hpVal">100</span></div>
+    <div class="vital"><span class="ico">⛨</span><span id="armorVal">0</span></div>
+  </div>
+  <div id="ammo"><div id="wname"></div><div><span id="clip">20</span><span class="sep">/</span><span id="reserve">120</span></div></div>
+  <div id="slots"></div>
+  <div id="hint"></div>
+  <div id="progress" class="hidden"><div class="lbl" id="progressLbl"></div><div class="bar"><div id="progressFill"></div></div></div>
+  <div id="banner" class="hidden"></div>
+  <div id="centerMsg"></div>
+  <div id="spectate" class="hidden"></div>
+  <div id="scope" class="hidden"><div class="ring"></div><div class="lineh"></div><div class="linev"></div></div>
+  <div id="flash"></div>
+  <div id="bloodVignette"></div>
+  <div id="bombIcon" class="hidden">💣</div>
+</div>
+
+<div id="scoreboard" class="hidden"></div>
+<div id="buymenu" class="hidden"></div>
+
+<!-- Menu principal (montado por js/menu.js) -->
+<div id="menu" class="mm"></div>
+<div id="matchEnd" class="hidden"></div>
+
+<div id="pause" class="screen hidden">
+  <div class="menuBox small">
+    <h2>Pausado</h2>
+    <button id="btnResume" class="big">Continuar</button>
+    <div class="row"><label>Sensibilidade <b id="sensLbl2">1.6</b></label><input type="range" id="optSens2" min="0.3" max="5" step="0.05" value="1.6"></div>
+    <div class="row"><label>Cor da mira</label>
+      <div class="seg" id="optCross"><button data-v="#3f6" class="on">Verde</button><button data-v="#0ff">Ciano</button><button data-v="#ff3">Amarelo</button><button data-v="#f3f">Rosa</button><button data-v="#fff">Branco</button></div></div>
+    <button id="btnCheats">Painel Invicto (Insert / F8)</button>
+    <button id="btnAC" onclick="G.AntiCheat.report()">Relatório do Guardião (F9)</button>
+    <button id="btnQuit">Sair para o menu</button>
+  </div>
+</div>
+
+<div id="loading" class="screen hidden"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="js/util.js?v=52"></script>
+<script src="js/textures.js?v=52"></script>
+<script src="js/weapons.js?v=52"></script>
+<script src="js/map.js?v=52"></script>
+<script src="js/detail.js?v=52"></script>
+<script src="js/furniture.js?v=52"></script>
+<script src="js/maps.js?v=52"></script>
+<script src="js/audio.js?v=52"></script>
+<script src="js/models.js?v=52"></script>
+<script src="js/gunmodels.js?v=52"></script>
+<script src="js/agents.js?v=52"></script>
+<script src="js/skins.js?v=52"></script>
+<script src="js/agent.js?v=52"></script>
+<script src="js/combat.js?v=52"></script>
+<script src="js/smoke.js?v=52"></script>
+<script src="js/bots.js?v=52"></script>
+<script src="js/hud.js?v=52"></script>
+<script src="js/game.js?v=52"></script>
+<script src="js/touch.js?v=52"></script>
+<script src="js/cheats.js?v=52"></script>
+<script src="js/anticheat.js?v=52"></script>
+<script src="js/mp.js?v=52"></script>
+<script src="js/menu.js?v=52"></script>
+</body>
+</html>
