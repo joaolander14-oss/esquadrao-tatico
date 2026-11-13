@@ -23,11 +23,13 @@
     'w': { f: -1.0, mat: 'canal', water: true },                      // canal com água rasa
     'j': { f: 1.0, mat: 'wall', cb: 2.3, ct: 7.0, window: true },     // janela: peitoril, vão de 1,3 m e parede acima
     'p': { f: 3.0, mat: 'upper' },                                    // plataforma alta / telhado acessível
-    'h': { f: 1.1, mat: 'raise', low: true }                          // mureta de cobertura
+    'h': { f: 1.1, mat: 'raise', low: true },                         // mureta de cobertura
+    'Y': { f: 0, mat: 'spawn', zone: 'T', cb: 4.2, ct: 5.0 }, 'Z': { f: 0, mat: 'spawn', zone: 'CT', cb: 4.2, ct: 5.0 },     // spawns cobertos (esgoto)
+    'k': { f: -6, mat: 'pool', deadly: true, water: true, wy: 2.65 }  // piscina letal (líquido a 2,65 m do fundo); altura via fill(...,'k',h)
   };
   M.TYPES = TYPES;
   const DEFAULT_THEME = {
-    mats: { wall: 'plaster', roof: 'roofTop', ground: 'sand', ground2: 'sand', spawn: 'tiles', site: 'tiles', stair: 'stone', upper: 'planks', tunnel: 'concrete', slab: 'planks', raise: 'stone', ramp: 'stone', canal: 'stone' },
+    mats: { wall: 'plaster', roof: 'roofTop', ground: 'sand', ground2: 'sand', spawn: 'tiles', site: 'tiles', stair: 'stone', upper: 'planks', tunnel: 'concrete', slab: 'planks', raise: 'stone', ramp: 'stone', canal: 'stone', pool: 'darkTiles' },
     sky: ['#5f93c9', '#a9c6de', '#e8d6b4'], fog: 0xd9cbb0, fogNear: 70, fogFar: 230,
     hemi: [0xcfe0f5, 0xb99466, 0.72], sun: [0xfff0d6, 0.95], sunDir: [50, 90, -40],
     wallH: [5.5, 1.5, 3], window: 'shutter', winChance: 0.38, tintVar: 0.2, door: 'wood', gate: 0x6a7078,
@@ -65,6 +67,7 @@
       }
     };
     def.carve(fill, rampFill);
+    if (def.carve2) def.carve2(fill, rampFill);
     const houseDoors = (def.houses === false || def.houses === 0) ? [] : autoHouses(fill, hOv, def.houses || 2);
     floor = M.floor = new Float32Array(W * H);
     corn = M.corn = new Float32Array(W * H * 4);
@@ -104,7 +107,7 @@
     M.resetDoors();
     // navegação (portas não bloqueiam: os bots abrem)
     navBlocked = M.navBlocked = new Uint8Array(W * H);
-    for (let k = 0; k < W * H; k++) { const t = TYPES[grid[k]]; navBlocked[k] = isWall[k] || (t && (t.window || t.low)) ? 1 : 0; }
+    for (let k = 0; k < W * H; k++) { const t = TYPES[grid[k]]; navBlocked[k] = isWall[k] || (t && (t.window || t.low || t.deadly)) ? 1 : 0; }
     for (const p of props) {
       if (p.type === 'door') continue;
       for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
@@ -184,10 +187,51 @@
       for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ni = i + di, nj = j + dj; if (ni < 0 || nj < 0 || ni >= W || nj >= H) continue; const b = nj * W + ni; if (!seen[b] && canStep(a, b)) { seen[b] = 1; q.push(b); } } }
     return seen;
   }
+  // peças-chave do tema (def.setpieces = [[tipo, col, lin, rotGraus, opções]]): procura o lugar livre mais próximo e confere os caminhos
+  function placeSetPieces(api) {
+    const list = def.setpieces; if (!list || !list.length || !G.Furn) return;
+    const sp = M.spots, pts = []; for (const k in sp) { const v = sp[k]; if (Array.isArray(v)) pts.push(...v); else if (v && v.x !== undefined) pts.push(v); else if (k === 'routes') for (const s in v) for (const r of v[s]) pts.push(...r); }
+    const need = [...new Set(pts.map(p => M.cellIndex(p.x, p.z)).filter(k => k >= 0))];
+    const tS = M.cellIndex(sp.tSpawn[0].x, sp.tSpawn[0].z), cS = M.cellIndex(sp.ctSpawn[0].x, sp.ctSpawn[0].z);
+    const ok = () => { const a = reachFrom(tS), b = reachFrom(cS); for (const k of need) if (!a[k] || !b[k]) return false; return a[cS] && b[tS]; };
+    const dc = (M.doors || []).map(p => [(p.x1 + p.x2) / 2, (p.z1 + p.z2) / 2]);
+    let n = 0;
+    for (const e of list) {
+      const kind = e[0], i0 = e[1], j0 = e[2], rot = e[3] || 0, o = e[4] || {}, dm = G.Furn.dims[kind]; if (!dm) continue;
+      const rr = ((rot % 360) + 360) % 360, swap = rr === 90 || rr === 270, w = swap ? dm[1] : dm[0], d = swap ? dm[0] : dm[1];
+      const R = o.r === undefined ? 3 : o.r; let done = false;
+      for (let ring = 0; ring <= R && !done; ring++) for (let dj = -ring; dj <= ring && !done; dj++) for (let di = -ring; di <= ring && !done; di++) {
+        if (Math.max(Math.abs(di), Math.abs(dj)) !== ring) continue;
+        const cx = c(i0 + di) + (o.ox || 0), cz = c(j0 + dj) + (o.oz || 0), x1 = cx - w / 2, x2 = cx + w / 2, z1 = cz - d / 2, z2 = cz + d / 2;
+        const ci = Math.floor(cx / S), cj = Math.floor(cz / S); if (ci < 1 || cj < 1 || ci >= W - 1 || cj >= H - 1) continue;
+        const base = floor[cj * W + ci]; let bad = false;
+        for (let jj = Math.floor(z1 / S); jj <= Math.floor((z2 - 1e-4) / S) && !bad; jj++) for (let ii = Math.floor(x1 / S); ii <= Math.floor((x2 - 1e-4) / S); ii++) {
+          const k = jj * W + ii, t = TYPES[grid[k]] || {};
+          if (ii < 1 || jj < 1 || ii >= W - 1 || jj >= H - 1 || isWall[k] || ramp[k] || water[k] || t.window || t.low || t.deadly || Math.abs(floor[k] - base) > 0.05 || zone[k] === 'T' || zone[k] === 'CT' || (cb[k] < 900 && base + dm[2] > cb[k] - 0.05)) { bad = true; break; }
+        }
+        if (bad) continue;
+        for (const p of props) if (p.x1 < x2 + 0.2 && p.x2 > x1 - 0.2 && p.z1 < z2 + 0.2 && p.z2 > z1 - 0.2 && p.y2 > base + 0.3) { bad = true; break; }
+        for (const [px, pz] of dc) if (Math.hypot(Math.max(x1 - px, 0, px - x2), Math.max(z1 - pz, 0, pz - z2)) < 1.8) bad = true;
+        for (const l of M.ladders || []) if (Math.hypot(Math.max(x1 - l.x, 0, l.x - x2), Math.max(z1 - l.z, 0, l.z - z2)) < 1.5) bad = true;
+        for (const p of pts) { const ddx = Math.max(x1 - p.x, 0, p.x - x2), ddz = Math.max(z1 - p.z, 0, p.z - z2); if (Math.hypot(ddx, ddz) < 1.1) { bad = true; break; } }
+        if (bad) continue;
+        const p = api.furn(kind, cx, cz, rot, Object.assign({ seed: i0 * 31 + j0, n: n }, o));
+        const changed = [];
+        for (let jj = Math.max(0, cj - 5); jj <= Math.min(H - 1, cj + 5); jj++) for (let ii = Math.max(0, ci - 5); ii <= Math.min(W - 1, ci + 5); ii++) {
+          const kk = jj * W + ii, x = c(ii), z = c(jj);
+          if (!navBlocked[kk] && x > p.x1 - 0.9 && x < p.x2 + 0.9 && z > p.z1 - 0.9 && z < p.z2 + 0.9 && p.y2 > floor[kk] + 0.5) { navBlocked[kk] = 1; changed.push(kk); }
+        }
+        if (changed.length && !ok()) { for (const kk of changed) navBlocked[kk] = 0; props.pop(); continue; }
+        done = true; n++;
+      }
+    }
+    M.setCount = n;
+  }
   function autoFurnish(api) {
+    placeSetPieces(api);
     const sty = G.Detail && G.Detail.styles ? Object.assign({}, G.Detail.styles.default, G.Detail.styles[def.id] || {}) : {};
-    const lib = FURN_LIB[sty.furn]; if (!lib) return;
-    const dens = sty.furnDens || 0.12, hash = G.U.hash2, sp = M.spots;
+    const lib = def.furnLib || FURN_LIB[sty.furn]; if (!lib) return;
+    const dens = def.furnDens || sty.furnDens || 0.12, hash = G.U.hash2, sp = M.spots;
     const pts = []; for (const k in sp) { const v = sp[k]; if (Array.isArray(v)) pts.push(...v); else if (v && v.x !== undefined) pts.push(v); else if (k === 'routes') for (const s in v) for (const r of v[s]) pts.push(...r); }
     const need = [...new Set(pts.map(p => M.cellIndex(p.x, p.z)).filter(k => k >= 0))];
     const tS = M.cellIndex(sp.tSpawn[0].x, sp.tSpawn[0].z), cS = M.cellIndex(sp.ctSpawn[0].x, sp.ctSpawn[0].z);
@@ -294,6 +338,7 @@
   }
   // ---------------- Vidros nas janelas ('j'): quebram com tiro/granada, abrem com E (fazem barulho) ----------------
   function makeWindows(api) {
+    if (def.glass === false) { M.windows = []; return; }
     for (let j = 1; j < H - 1; j++) for (let i = 1; i < W - 1; i++) {
       const k = j * W + i, t = TYPES[grid[k]]; if (!t || !t.window) continue;
       const openX = !isWall[k - 1] && !isWall[k + 1], openZ = !isWall[k - W] && !isWall[k + W];
@@ -387,6 +432,8 @@
   M.zoneAt = (x, z) => { const k = M.cellIndex(x, z); return k < 0 ? null : zone[k]; };
   M.siteCenter = s => s === 'A' ? M.spots.A : M.spots.B;
   M.isBuyZone = (x, z, team) => { const k = M.cellIndex(x, z); return k >= 0 && !!(team === 'T' ? buyT : buyCT)[k]; };
+  // morre quem entra no líquido de uma célula letal ('k')
+  M.deadlyAt = (x, y, z) => { const k = M.cellIndex(x, z); if (k < 0) return false; const t = TYPES[grid[k]]; return !!(t && t.deadly) && y < floor[k] + (t.wy !== undefined ? t.wy : 2.65) - 0.1; };
   M.isWater = (x, z) => { const k = M.cellIndex(x, z); return k >= 0 && !!water[k]; };
   // altura do piso num ponto (bilinear dentro de rampas)
   function hAtK(k, x, z) {
@@ -829,7 +876,7 @@
       const winCell = !!TT.window;
       const fm = wall ? texOf('roof') : texOf(TT.mat);
       top(fm, x0, z0, x1, z1, hs, roofed(k) ? sh(t, 0.5) : t, 1);
-      if (water[k]) waterQuads.push([x0, z0, x1, z1, floor[k] + 0.55]);
+      if (water[k]) waterQuads.push([x0, z0, x1, z1, floor[k] + (TT.wy !== undefined ? TT.wy : 0.55)]);
       // bordas: [vizinho, eixo, direção, posição, índices dos meus cantos na borda, índices do vizinho]
       const nb = [[i + 1, j, 'x', 1, x1, [1, 3], [0, 2]], [i - 1, j, 'x', -1, x0, [0, 2], [1, 3]], [i, j + 1, 'z', 1, z1, [2, 3], [0, 1]], [i, j - 1, 'z', -1, z0, [0, 1], [2, 3]]];
       for (const [ni, nj, ax, dir, pos, mine, theirs] of nb) {
@@ -888,7 +935,7 @@
       const p = [];
       for (const [a, b, cc, d, y] of waterQuads) p.push(a, y, d, cc, y, d, cc, y, b, a, y, d, cc, y, b, a, y, b);
       const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.Float32BufferAttribute(p, 3)); bg.computeVertexNormals();
-      const wm = new THREE.MeshPhongMaterial({ color: theme.water, transparent: true, opacity: 0.62, shininess: 120, specular: 0xbfdfff, depthWrite: false });
+      const wm = new THREE.MeshPhongMaterial({ color: theme.water, transparent: true, opacity: theme.waterOpacity || 0.62, shininess: 120, specular: 0xbfdfff, emissive: theme.waterGlow || 0, depthWrite: false });
       const wmesh = new THREE.Mesh(bg, wm); wmesh.renderOrder = 2; group.add(wmesh);
       M.waterMat = wm;
     } else M.waterMat = null;
@@ -1040,6 +1087,7 @@
         const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 8), new THREE.MeshBasicMaterial({ color: color || 0xffe2a0 }));
         bulb.position.set(x, M.groundAt(x, z) + h, z); group.add(bulb);
       },
+      glow(x, y, z, color, intensity, dist) { const l = new THREE.PointLight(color, intensity, dist); l.position.set(x, y, z); group.add(l); return l; },
       furn(kind, x, y, z, rotY, o) { const m = G.Furn.make(kind, o); m.position.set(x, y, z); m.rotation.y = rotY || 0; group.add(m); return m; },
       coolingTower(x, z, s) { const m = G.Furn.coolingTower(x, z, s || 1); group.add(m); return m; },
       containment(x, z, s) { const m = G.Furn.containment(x, z, s || 1); group.add(m); return m; },
@@ -1081,8 +1129,9 @@
         const glow = new THREE.PointLight(new THREE.Color(color), 0.9, 9); glow.position.set(x, y, z); group.add(glow);
         return m;
       },
-      cyl(r, h, x, y, z, color, tex) {
-        const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 24), new THREE.MeshLambertMaterial({ color: color || 0xffffff, map: tex ? G.Tex.get(tex) : null }));
+      banner(x, y, z, rotY, color, w, h) { const m = new THREE.Mesh(new THREE.PlaneGeometry(w || 1.2, h || 3), new THREE.MeshLambertMaterial({ color: color || 0x9a1a1a, map: G.Tex.get('cloth', 128), side: THREE.DoubleSide })); m.position.set(x, y, z); m.rotation.y = rotY || 0; group.add(m); return m; },
+      cyl(r, h, x, y, z, color, tex, rt) {
+        const m = new THREE.Mesh(new THREE.CylinderGeometry(rt === undefined ? r : rt, r, h, 24), new THREE.MeshLambertMaterial({ color: color || 0xffffff, map: tex ? G.Tex.get(tex) : null }));
         m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; group.add(m); return m;
       },
       group

@@ -490,11 +490,26 @@
     };
     hand(gun, 0.0, -0.05, 0.04, 1, [0.06, -0.16, 0.5]);
     const lh = gun.userData.lh;
+    let lhand = null;
     if (!isNade && def.cat !== 'knife' && def.cat !== 'pistol' && def.cat !== 'equip') {
-      hand(gun, -0.012, lh ? lh[1] - 0.025 : -0.02, lh ? -lh[0] : -0.26, -1, [-0.16, -0.2, 0.32]);
+      lhand = hand(gun, -0.012, lh ? lh[1] - 0.025 : -0.02, lh ? -lh[0] : -0.26, -1, [-0.16, -0.2, 0.32]);
     } else if (def.cat === 'pistol' && def.shape !== 'dual') {
-      hand(gun, -0.035, -0.06, 0.015, -1, [-0.18, -0.12, 0.45]);
+      lhand = hand(gun, -0.035, -0.06, 0.015, -1, [-0.18, -0.12, 0.45]);
     }
+    if (lhand) lhand.userData.base = lhand.position.clone();
+    // carregadores falsos (o velho cai, o novo sobe) e o pino da granada
+    if (def.mag && !def.shellReload && lhand) {
+      const md = gun.userData.magDim || (def.cat === 'pistol' ? [0.024, 0.075, 0.034] : [0.028, 0.1, 0.045]);
+      const mp = gun.userData.magPos || (def.cat === 'pistol' ? new THREE.Vector3(0, -0.09, 0.01) : new THREE.Vector3(0, -0.1, -0.06));
+      const mm = new THREE.MeshPhongMaterial({ color: 0x23262b, shininess: 30, specular: 0x333333 });
+      const mk = () => { const m = new THREE.Mesh(new THREE.BoxGeometry(md[0], md[1], md[2]), mm); m.visible = false; gun.add(m); return m; };
+      const real = []; gun.traverse(o => { if (o.userData && o.userData.mag) real.push(o); });
+      g.userData.vmag = { old: mk(), neu: mk(), pos: mp, real };
+    }
+    if (def.cat === 'grenade') {
+      const pin = new THREE.Mesh(new THREE.TorusGeometry(0.014, 0.0026, 6, 14), new THREE.MeshPhongMaterial({ color: 0xc8c8cc, shininess: 120 })); pin.visible = false; gun.add(pin); g.userData.pin = pin;
+    }
+    g.userData.lhand = lhand;
     g.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
     g.scale.setScalar(def.cat === 'knife' ? 0.62 : 0.5);
     gun.rotation.y = 0.05;

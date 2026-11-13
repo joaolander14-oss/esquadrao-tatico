@@ -329,6 +329,52 @@
     if (!cache[key]) cache[key] = mk(size || 256, (g, s) => { defs[name](g, s); if (s >= 512 && SURF.has(name)) detail(g, s, name); });
     return cache[key];
   };
+  Object.assign(defs, {
+    grass: (g, s) => {
+      g.fillStyle = '#4c7a2c'; g.fillRect(0, 0, s, s);
+      blotches(g, s, 46, 'rgba(26,60,18,0.55)', s * 0.04, s * 0.16, 41); blotches(g, s, 34, 'rgba(120,150,62,0.45)', s * 0.03, s * 0.12, 42);
+      const r = G.U.mulberry(43); g.strokeStyle = 'rgba(30,70,20,0.5)'; for (let i = 0; i < 260; i++) { const x = r() * s, y = r() * s; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (r() - 0.5) * 6, y - 4 - r() * 6); g.stroke(); }
+      noise(g, s, 26, false, 44);
+    },
+    dirt: (g, s) => {
+      g.fillStyle = '#76563a'; g.fillRect(0, 0, s, s);
+      blotches(g, s, 40, 'rgba(60,40,24,0.55)', s * 0.04, s * 0.15, 51); blotches(g, s, 26, 'rgba(150,120,84,0.4)', s * 0.03, s * 0.1, 52);
+      const r = G.U.mulberry(53); for (let i = 0; i < 90; i++) { g.fillStyle = `rgba(${150 + r() * 40},${130 + r() * 30},${100 + r() * 30},0.6)`; g.beginPath(); g.ellipse(r() * s, r() * s, 1 + r() * 3, 1 + r() * 2, r() * 3, 0, 7); g.fill(); }
+      noise(g, s, 28, false, 54);
+    },
+    moss: (g, s) => {
+      g.fillStyle = '#6d7165'; g.fillRect(0, 0, s, s);
+      const r = G.U.mulberry(61), rows = 6;
+      for (let y = 0; y < rows; y++) { const off = (y % 2) * s / 8; for (let x = -1; x < 4; x++) { const v = 100 + r() * 36; g.fillStyle = `rgb(${v},${v + 4},${v - 4})`; g.fillRect(x * s / 4 + off + 1, y * s / rows + 1, s / 4 - 2, s / rows - 2); } }
+      blotches(g, s, 38, 'rgba(48,96,40,0.6)', s * 0.04, s * 0.16, 62); blotches(g, s, 18, 'rgba(120,150,70,0.35)', s * 0.03, s * 0.1, 63);
+      g.strokeStyle = 'rgba(20,24,16,0.55)'; for (let i = 0; i < 16; i++) { g.beginPath(); let x = r() * s, y = r() * s; g.moveTo(x, y); for (let k = 0; k < 4; k++) { x += (r() - 0.5) * 22; y += r() * 18; g.lineTo(x, y); } g.stroke(); }
+      noise(g, s, 24, false, 64);
+    },
+    wetBrick: (g, s) => {
+      g.fillStyle = '#26221e'; g.fillRect(0, 0, s, s);
+      const r = G.U.mulberry(71), rows = 8;
+      for (let y = 0; y < rows; y++) { const off = (y % 2) * s / 8; for (let x = -1; x < 4; x++) { const v = 0.8 + r() * 0.4; g.fillStyle = `rgb(${Math.round(88 * v)},${Math.round(72 * v)},${Math.round(62 * v)})`; g.fillRect(x * s / 4 + off + 2, y * s / rows + 2, s / 4 - 4, s / rows - 4); } }
+      const gr = g.createLinearGradient(0, s * 0.45, 0, s); gr.addColorStop(0, 'rgba(60,96,30,0)'); gr.addColorStop(1, 'rgba(60,110,30,0.72)'); g.fillStyle = gr; g.fillRect(0, 0, s, s);
+      blotches(g, s, 26, 'rgba(70,120,40,0.45)', s * 0.03, s * 0.1, 72); noise(g, s, 22, false, 73);
+    },
+    slime: (g, s) => {
+      g.fillStyle = '#5a7a22'; g.fillRect(0, 0, s, s);
+      blotches(g, s, 40, 'rgba(160,190,60,0.5)', s * 0.05, s * 0.18, 81); blotches(g, s, 30, 'rgba(30,60,14,0.5)', s * 0.04, s * 0.14, 82); noise(g, s, 20, false, 83);
+    },
+    slag: (g, s) => {
+      g.fillStyle = '#2c2825'; g.fillRect(0, 0, s, s);
+      blotches(g, s, 40, 'rgba(70,64,58,0.6)', s * 0.04, s * 0.14, 91);
+      const r = G.U.mulberry(92); g.lineWidth = 1.5; for (let i = 0; i < 26; i++) { g.strokeStyle = `rgba(255,${90 + r() * 80},20,${0.4 + r() * 0.5})`; g.beginPath(); let x = r() * s, y = r() * s; g.moveTo(x, y); for (let k = 0; k < 4; k++) { x += (r() - 0.5) * 24; y += (r() - 0.5) * 24; g.lineTo(x, y); } g.stroke(); }
+      noise(g, s, 26, false, 93);
+    },
+    timber: (g, s) => {
+      g.fillStyle = '#e4d8bc'; g.fillRect(0, 0, s, s); noise(g, s, 18, false, 101);
+      g.fillStyle = '#4a3220'; const b = s / 24;
+      g.fillRect(0, 0, s, b); g.fillRect(0, s / 2 - b / 2, s, b); g.fillRect(0, s - b, s, b); g.fillRect(0, 0, b, s); g.fillRect(s / 2 - b / 2, 0, b, s); g.fillRect(s - b, 0, b, s);
+      g.strokeStyle = '#4a3220'; g.lineWidth = b; g.beginPath(); g.moveTo(b, s / 2 - b); g.lineTo(s / 2 - b, b); g.moveTo(s / 2 + b, s - b); g.lineTo(s - b, s / 2 + b); g.stroke();
+      blotches(g, s, 14, 'rgba(120,100,70,0.25)', s * 0.04, s * 0.12, 102);
+    }
+  });
   T.get = (name, size) => {
     const key = 'tex:' + name + ':' + (size || 256);
     if (!cache[key]) {

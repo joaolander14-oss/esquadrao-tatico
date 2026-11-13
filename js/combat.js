@@ -323,6 +323,7 @@
     a.lastShot = G.Game.time;
     if (a.isHuman) G.Audio.knife(null);
     a.nadeIdx = 0;
+    if (a.onThrow) a.onThrow();
     if (!a.inv.grenades.length) setTimeout(() => { if (a.alive && a.cur === 'grenade') a.switchTo(a.bestSlot(), true); }, 300);
     else a.drawT = 0.4;
     if (G.Bots) G.Bots.onNadeThrown(a, id);

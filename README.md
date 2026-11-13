@@ -11,9 +11,10 @@ Mapas, agentes, armas, facas e acabamentos são **originais**. O jogo é inspira
 
 ## O que tem
 
-- **Mapas:** 11 mapas com escadas, telhados, casas e fábricas onde dá para entrar, janelas de vidro que quebram ou abrem (fazendo barulho), escadas de mão, portas que estilhaçam a tiro ou explodem com granada, móveis, máquinas e a Usina Nuclear (reator, torres de refrigeração e sala de bombas).
+- **Mapas:** 14 mapas, cada um com construções do tema (Usina Nuclear com o reator numa piscina letal, Ruínas Esquecidas, Galerias do Esgoto, Vila das Pontes, ferrovia, fundição com metal fundido, porto com guindaste…), escadas, telhados, casas e fábricas onde dá para entrar, janelas de vidro que quebram ou abrem (fazendo barulho), escadas de mão, portas que estilhaçam a tiro ou explodem com granada, móveis, máquinas e a Usina Nuclear (reator, torres de refrigeração e sala de bombas).
 - **Agentes e armas:** 42 agentes, 45 armas com padrão de recuo e penetração, 14 estilos de faca (karambit, borboleta, baionetas, bowie, canivete, tantō, kukri e outros) e 40 acabamentos no Arsenal.
 - **Bots:** com dificuldade ajustável, que usam portas e escadas de mão.
-- **Online:** sala com código de 5 letras, de navegador para navegador (PeerJS), com bots completando os times.
+- **Online:** sala com código de 5 letras, de navegador para navegador (PeerJS), com bots completando os times. Se a conexão direta não fecha (redes com NAT restritivo, como dados móveis), cai sozinha numa retransmissão por MQTT.
+- **Animações:** sacar e recarregar de armas, facas e granadas (carregador cai e sobe, pino da granada, arremesso).
 - **Anti-trapaça Guardião:** decide só pelo que acontece na partida (mira, tiros, movimento e estado do personagem).
 - **Painel "Invicto":** só offline, para testar o Guardião.

@@ -92,9 +92,10 @@
     s.quadraticCurveTo(f + w + curve * 0.25, y - len * 0.55, f + w + curve, y - len);
     s.lineTo(f + curve - 0.002, y - len - 0.006);
     s.quadraticCurveTo(f + curve * 0.25, y - len * 0.55, f, y);
-    E(g, s, depth || 0.026, mat, { bevel: 0.003 });
+    E(g, s, depth || 0.026, mat, { bevel: 0.003 }).userData.mag = true;
     // base do carregador
-    E(g, [[f + curve - 0.006, y - len - 0.004], [f + w + curve + 0.004, y - len + 0.002], [f + w + curve + 0.004, y - len - 0.008], [f + curve - 0.006, y - len - 0.014]], (depth || 0.026) + 0.004, mat, { bevel: 0.002 });
+    E(g, [[f + curve - 0.006, y - len - 0.004], [f + w + curve + 0.004, y - len + 0.002], [f + w + curve + 0.004, y - len - 0.008], [f + curve - 0.006, y - len - 0.014]], (depth || 0.026) + 0.004, mat, { bevel: 0.002 }).userData.mag = true;
+    if (!g.userData.magPos) { g.userData.magPos = new THREE.Vector3(0, y - len * 0.5, -(f + w / 2 + curve / 2)); g.userData.magDim = [depth || 0.026, len, w + 0.006]; }
   }
   function flashHider(g, f, y, r) {
     cz(g, r, f, f + 0.048, y, STEEL());

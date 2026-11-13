@@ -76,6 +76,7 @@
     if (kind === 'metal') { tone(d, t, 'square', 220, 140, 0.25, 0.25); noise(d, t, 0.3, 'bandpass', 1500, 2, 0.005, 0.25, 0.4); return; }
     tone(d, t, 'sawtooth', 120, 90, 0.5, 0.12, 0.05); tone(d, t + 0.1, 'sawtooth', 300, 220, 0.35, 0.06, 0.05); noise(d, t + 0.35, 0.15, 'lowpass', 600, 1, 0.005, 0.12, 0.5);
   };
+  A.splash = pos => { if (!ctx) return; const t = ctx.currentTime, d = out(pos, 1.0); noise(d, t, 0.9, 'lowpass', 1400, 0.7, 0.01, 0.8, 0.9); noise(d, t + 0.05, 0.5, 'bandpass', 2400, 1, 0.01, 0.4, 0.5); tone(d, t, 'sine', 180, 60, 0.5, 0.3); };
   A.glass = pos => {
     if (!ctx) return; const t = ctx.currentTime, d = out(pos, 1.0);
     noise(d, t, 0.5, 'highpass', 2600, 0.6, 0.002, 0.45, 0.9); noise(d, t, 0.2, 'bandpass', 900, 1, 0.002, 0.15, 0.6);

@@ -268,6 +268,20 @@
     for (const a of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) { const s = F.sign('REATOR · ÁREA CONTROLADA', '#f0d020', '#111', 'rad'); s.position.set(Math.sin(a) * 2.02, 3.2, Math.cos(a) * 2.02); s.rotation.y = a; s.scale.set(1.3, 1.3, 1); p.loose.push(s); }
     p.tor(mt.yellow(), 2.05, 0.05, 0, 6.0, 0, Math.PI / 2, 0, 0);
   });
+  // reator submerso: a base fica no fundo da piscina (y local 0 = fundo); a água fica em ~2,65 m
+  def('reactorPool', 4.6, 4.6, 11, 4, (p) => {
+    const gl = mt.glow(0x4cf0ff);
+    p.cyl(mt.concrete(), 2.35, 2.45, 1.0, 0, 0.5, 0, 0, 0, 0, 28);
+    p.cyl(mt.grey(), 1.75, 1.8, 6.6, 0, 4.3, 0, 0, 0, 0, 28);                       // vaso do reator
+    p.cyl(gl, 1.79, 1.79, 0.5, 0, 1.9, 0, 0, 0, 0, 28); p.cyl(gl, 1.79, 1.79, 0.18, 0, 2.55, 0, 0, 0, 0, 28);   // brilho do núcleo sob a água
+    p.cyl(mt.hazard(), 1.79, 1.79, 0.55, 0, 5.6, 0, 0, 0, 0, 28);
+    p.cyl(mt.dark(), 2.05, 2.05, 0.28, 0, 7.7, 0, 0, 0, 0, 28);                      // flange da tampa
+    p.sph(mt.grey(), 1.75, 0, 7.85, 0, 1, 0.5, 1);                                   // cabeça da tampa
+    for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2, r = 0.95; p.cyl(mt.dark(), 0.13, 0.13, 1.5, Math.cos(a) * r, 9.0, Math.sin(a) * r); p.cyl(mt.steel(), 0.2, 0.2, 0.12, Math.cos(a) * r, 9.8, Math.sin(a) * r); }
+    p.cyl(mt.dark(), 0.18, 0.18, 1.9, 0, 9.2, 0); p.cyl(mt.yellow(), 0.3, 0.3, 0.2, 0, 10.2, 0);
+    for (const s of [-1, 1]) { p.cyl(mt.blue(), 0.34, 0.34, 4.6, s * 3.9, 6.3, 0, 0, 0, Math.PI / 2); flange(p, s * 2.0, 6.3, 0, 0.34, 'x'); }
+    for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + Math.PI / 4; const s = F.sign('REATOR 1 · ÁREA CONTROLADA', '#f0d020', '#111', 'rad', 1.1, 0.55); s.position.set(Math.sin(a) * 1.81, 4.6, Math.cos(a) * 1.81); s.rotation.y = a; p.loose.push(s); }
+  });
   def('waterTank', 3.4, 3.4, 8, 4, (p) => {
     p.cyl(mt.blue(), 1.6, 1.6, 6.8, 0, 3.4, 0, 0, 0, 0, 26); p.sph(mt.blue(), 1.6, 0, 6.8, 0, 1, 0.3, 1);
     for (let k = 0; k < 4; k++) p.cyl(mt.dark(), 1.63, 1.63, 0.08, 0, 1.2 + k * 1.6, 0, 0, 0, 0, 26);
@@ -275,6 +289,110 @@
     for (const x of [-0.18, 0.18]) p.box(mt.steel(), 0.03, 6.8, 0.03, x, 3.4, 1.72);
     const s = F.sign('ÁGUA DE REFRIGERAÇÃO', '#2a5a8a', '#ffffff'); s.position.set(0, 4.5, 1.62); s.scale.set(1.8, 1.8, 1); p.loose.push(s);
   });
+  // ===== cenário temático: transporte, fundição, praça, ruínas, esgoto =====
+  const stone = () => lam('stnX', { color: 0xc8c4b8, map: T('stone') }), stoneW = () => lam('stwX', { color: 0xd0ccc0, map: T('stoneWall') });
+  const mossM = () => lam('mossX', { color: 0xffffff, map: T('moss') }), hiero = () => lam('hieX', { color: 0xe8dcc0, map: T('hiero') });
+  const fire = () => mt.glow(0xff8a20), molten = () => mt.glow(0xff6a18);
+  const wheelZ = (p, x, y, z, r) => p.cyl(mt.dark(), r, r, 0.24, x, y, z, 0, 0, Math.PI / 2, 14);
+  def('locomotive', 3.0, 9.6, 4.3, 4, (p, o) => {
+    const c = o.color === 'red' ? mt.red() : o.color === 'blue' ? mt.blue() : mt.green();
+    p.box(mt.dark(), 2.8, 0.55, 9.4, 0, 0.8, 0); p.box(c, 2.5, 1.7, 5.6, 0, 1.95, -1.6); p.box(mt.dark(), 2.6, 0.14, 5.6, 0, 2.85, -1.6);
+    p.box(c, 2.8, 2.7, 2.8, 0, 2.4, 3.0); p.box(mt.dark(), 2.9, 0.16, 2.9, 0, 3.8, 3.0); p.box(mt.glass(), 2.0, 0.9, 0.05, 0, 3.0, 1.57); p.box(mt.glass(), 0.05, 0.9, 1.6, 1.41, 3.0, 3.1); p.box(mt.glass(), 0.05, 0.9, 1.6, -1.41, 3.0, 3.1);
+    p.box(mt.yellow(), 2.55, 0.32, 0.06, 0, 1.4, -4.42); p.cyl(mt.dark(), 0.3, 0.26, 1.0, 0.0, 3.3, -3.6); p.cyl(mt.glow(0xfff2b0), 0.22, 0.22, 0.1, 0, 2.5, -4.42, Math.PI / 2);
+    for (const z of [-3.6, -2.0, 2.0, 3.8]) for (const s of [-1, 1]) wheelZ(p, s * 1.2, 0.5, z, 0.5);
+    p.cyl(mt.steel(), 0.5, 0.5, 3.2, 0, 0.55, 0, Math.PI / 2, 0, 0, 14);
+    p.box(mt.dark(), 2.9, 0.4, 0.3, 0, 0.7, -4.55); p.box(mt.dark(), 2.9, 0.4, 0.3, 0, 0.7, 4.55);
+  });
+  def('trainCar', 3.0, 9.0, 3.9, 4, (p, o) => {
+    const c = lam('tcar' + ((o.n || 0) % 4), { color: [0x8a3a2a, 0x3a5a8a, 0x5a6a3a, 0x7a6a4a][(o.n || 0) % 4], map: T('corrugated') });
+    p.box(mt.dark(), 2.8, 0.5, 8.8, 0, 0.8, 0); p.box(c, 3.0, 2.6, 8.6, 0, 2.35, 0); p.box(mt.dark(), 3.06, 0.14, 8.7, 0, 3.72, 0);
+    for (const s of [-1, 1]) { p.box(mt.dark(), 0.06, 2.2, 1.9, s * 1.53, 2.35, 0.8); p.box(mt.steel(), 0.07, 0.1, 2.0, s * 1.55, 3.4, 0.8); }
+    for (const z of [-3.2, -2.2, 2.2, 3.2]) for (const s of [-1, 1]) wheelZ(p, s * 1.2, 0.5, z, 0.45);
+    p.box(mt.dark(), 2.9, 0.4, 0.3, 0, 0.7, -4.5); p.box(mt.dark(), 2.9, 0.4, 0.3, 0, 0.7, 4.5);
+  });
+  def('craneLeg', 1.7, 1.7, 9.5, 4, (p) => {
+    for (const [x, z] of [[-0.7, -0.7], [0.7, -0.7], [-0.7, 0.7], [0.7, 0.7]]) p.box(mt.yellow(), 0.14, 9.2, 0.14, x, 4.6, z);
+    for (let i = 0; i < 8; i++) { const y = 0.6 + i * 1.12; p.box(mt.yellow(), 1.4, 0.07, 0.07, 0, y, -0.7); p.box(mt.yellow(), 1.4, 0.07, 0.07, 0, y, 0.7); p.box(mt.yellow(), 0.07, 0.07, 1.4, -0.7, y, 0); p.box(mt.yellow(), 0.07, 0.07, 1.4, 0.7, y, 0); }
+    p.box(mt.dark(), 1.7, 0.4, 1.7, 0, 0.2, 0); p.box(mt.dark(), 1.7, 0.5, 1.7, 0, 9.25, 0); p.box(mt.hazard(), 1.72, 0.2, 1.72, 0, 8.7, 0);
+  });
+  def('forklift', 1.3, 2.7, 2.2, 3, (p, o) => {
+    const c = o.color === 'blue' ? mt.blue() : mt.orange();
+    p.box(c, 1.2, 0.9, 1.7, 0, 0.75, 0.3); p.box(mt.dark(), 1.0, 0.3, 0.9, 0, 1.35, 0.55);
+    for (const x of [-0.5, 0.5]) { p.box(mt.dark(), 0.08, 1.2, 0.08, x, 1.9, 0.15); p.box(mt.dark(), 0.08, 1.2, 0.08, x, 1.9, 1.05); }
+    p.box(mt.dark(), 1.1, 0.08, 1.0, 0, 2.5, 0.6);
+    p.box(mt.steel(), 1.1, 1.8, 0.1, 0, 1.2, -0.65); for (const x of [-0.4, 0.4]) p.box(mt.steel(), 0.12, 0.08, 1.2, x, 0.2, -1.25);
+    for (const [x, z] of [[-0.55, 0.9], [0.55, 0.9], [-0.55, -0.3], [0.55, -0.3]]) wheelZ(p, x, 0.3, z, 0.3);
+  });
+  def('conveyor', 1.2, 6.0, 1.3, 2, (p) => {
+    p.box(mt.dark(), 1.0, 0.14, 6.0, 0, 1.0, 0); p.box(mt.steel(), 0.06, 0.25, 6.0, 0.55, 1.1, 0); p.box(mt.steel(), 0.06, 0.25, 6.0, -0.55, 1.1, 0);
+    for (let i = 0; i < 12; i++) p.cyl(mt.steel(), 0.07, 0.07, 1.0, 0, 0.97, -2.75 + i * 0.5, 0, 0, Math.PI / 2, 8);
+    for (const z of [-2.7, 0, 2.7]) for (const s of [-1, 1]) p.box(mt.dark(), 0.1, 1.0, 0.1, s * 0.5, 0.5, z);
+    for (let i = 0; i < 4; i++) p.sph(lam('ore', { color: 0x4a4440 }), 0.2, ((i * 37) % 5 - 2) * 0.08, 1.2, -2 + i * 1.3, 1, 0.8, 1);
+  });
+  def('crucible', 3.4, 3.4, 3.4, 4, (p) => {
+    p.box(mt.dark(), 3.0, 0.4, 3.0, 0, 0.2, 0); for (const [x, z] of [[-1.1, -1.1], [1.1, -1.1], [-1.1, 1.1], [1.1, 1.1]]) p.box(mt.dark(), 0.3, 1.2, 0.3, x, 1.0, z);
+    p.cyl(mt.dark(), 1.5, 1.0, 2.0, 0, 2.2, 0, 0, 0, 0, 22); p.cyl(mt.steel(), 1.55, 1.55, 0.15, 0, 3.2, 0, 0, 0, 0, 22); p.cyl(molten(), 1.38, 1.38, 0.05, 0, 3.22, 0, 0, 0, 0, 22);
+    p.cyl(mt.yellow(), 1.52, 1.4, 0.3, 0, 1.6, 0, 0, 0, 0, 22);
+  });
+  def('furnace', 4.2, 4.2, 7.0, 4, (p) => {
+    p.cyl(mt.concrete(), 2.1, 2.2, 0.5, 0, 0.25, 0, 0, 0, 0, 24); p.cyl(mt.dark(), 1.7, 1.9, 4.2, 0, 2.6, 0, 0, 0, 0, 24); p.cyl(mt.dark(), 1.3, 1.7, 1.2, 0, 5.3, 0, 0, 0, 0, 24); p.cyl(mt.steel(), 0.7, 1.0, 1.0, 0, 6.4, 0, 0, 0, 0, 20);
+    for (let i = 0; i < 4; i++) p.cyl(mt.steel(), 1.9 - i * 0.04, 1.9 - i * 0.04, 0.16, 0, 1.2 + i * 1.0, 0, 0, 0, 0, 24);
+    p.box(molten(), 0.9, 0.7, 0.1, 0, 1.2, 1.85); p.cyl(mt.orange(), 0.2, 0.2, 2.5, 1.6, 1.0, 1.0, Math.PI / 2, 0, 0.3);
+    for (const s of [-1, 1]) p.cyl(mt.red(), 0.26, 0.26, 3.4, s * 2.0, 2.6, 0, 0, 0, 0, 10);
+  });
+  def('boiler', 2.6, 5.0, 2.8, 4, (p) => {
+    p.cyl(mt.green(), 1.15, 1.15, 4.4, 0, 1.5, 0, Math.PI / 2, 0, 0, 20); p.sph(mt.green(), 1.15, 0, 1.5, 2.2, 1, 1, 0.4); p.sph(mt.green(), 1.15, 0, 1.5, -2.2, 1, 1, 0.4);
+    for (let i = 0; i < 4; i++) p.cyl(mt.steel(), 1.18, 1.18, 0.1, 0, 1.5, -1.6 + i * 1.07, Math.PI / 2, 0, 0, 20);
+    p.cyl(mt.steel(), 0.25, 0.25, 0.9, 0, 2.9 - 0.0, 0.2); p.box(mt.dark(), 2.2, 0.35, 4.4, 0, 0.18, 0); p.tor(mt.black(), 0.16, 0.03, 0.0, 2.5, 1.0, 0, 0, 0);
+    p.cyl(mt.red(), 0.1, 0.1, 0.5, 0.5, 2.8, -1.0); wheel(p, 0.5, 3.1, -1.0, 'y');
+  });
+  def('fountain', 3.8, 3.8, 3.0, 4, (p) => {
+    p.cyl(stone(), 1.9, 2.0, 0.7, 0, 0.35, 0, 0, 0, 0, 28); p.cyl(mt.glow(0x6ad8ee), 1.7, 1.7, 0.05, 0, 0.6, 0, 0, 0, 0, 28);
+    p.cyl(stone(), 0.38, 0.5, 1.4, 0, 1.2, 0, 0, 0, 0, 14); p.cyl(stone(), 1.0, 0.45, 0.4, 0, 1.75, 0, 0, 0, 0, 20); p.cyl(mt.glow(0x6ad8ee), 0.85, 0.85, 0.05, 0, 1.92, 0, 0, 0, 0, 20);
+    p.cyl(stone(), 0.2, 0.3, 0.9, 0, 2.2, 0, 0, 0, 0, 12); p.cyl(stone(), 0.5, 0.2, 0.25, 0, 2.7, 0, 0, 0, 0, 14); p.cyl(mt.glow(0xbdeeff), 0.04, 0.04, 0.7, 0, 3.0, 0, 0, 0, 0, 6);
+    for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; p.cyl(mt.glow(0xbdeeff), 0.025, 0.025, 0.8, Math.cos(a) * 0.5, 2.3, Math.sin(a) * 0.5, Math.sin(a) * 0.5, 0, -Math.cos(a) * 0.5, 5); }
+  });
+  def('stall', 2.8, 1.8, 2.7, 2, (p, o) => {
+    const cl = mt.cloth(o.cloth || [0xb84a3a, 0x3a7a9a, 0xd8b04a, 0x4a8a4a][(o.n || 0) % 4]);
+    for (const x of [-1.25, 1.25]) { p.box(mt.wood(), 0.09, 2.6, 0.09, x, 1.3, -0.75); p.box(mt.wood(), 0.09, 2.0, 0.09, x, 1.0, 0.75); }
+    p.box(cl, 2.8, 0.06, 1.9, 0, 2.55, 0); p.box(mt.wood(), 2.5, 0.08, 0.9, 0, 0.95, 0.4); p.box(mt.wood(), 2.5, 0.9, 0.7, 0, 0.45, 0.4);
+    const cols = [0xd84a3a, 0xe8b02a, 0x6ab04a, 0xd88a2a]; for (let i = 0; i < 4; i++) p.sph(mt.cloth(cols[i]), 0.17, -0.9 + i * 0.6, 1.15, 0.4, 1, 0.9, 1);
+    p.box(mt.card(), 0.5, 0.35, 0.4, 0.9, 1.15, 0.2);
+  });
+  def('well', 1.8, 1.8, 2.4, 4, (p) => {
+    p.cyl(stoneW(), 0.85, 0.9, 1.0, 0, 0.5, 0, 0, 0, 0, 18); p.cyl(mt.glow(0x203a48), 0.62, 0.62, 0.04, 0, 0.98, 0, 0, 0, 0, 16);
+    for (const s of [-1, 1]) p.box(mt.wood(), 0.1, 1.6, 0.1, s * 0.8, 1.7, 0); p.box(mt.wood(), 1.9, 0.1, 0.1, 0, 2.5 - 0.1, 0); p.cyl(mt.wood(), 0.06, 0.06, 1.6, 0, 1.9, 0, 0, 0, Math.PI / 2, 8);
+    p.box(lam('roofW', { color: 0x8a4a2a, map: T('roofRed') }), 2.0, 0.1, 1.2, 0, 2.3, 0.45, 0.6); p.box(lam('roofW', { color: 0x8a4a2a, map: T('roofRed') }), 2.0, 0.1, 1.2, 0, 2.3, -0.45, -0.6);
+  });
+  def('cart', 1.3, 2.4, 1.4, 1, (p) => {
+    p.box(mt.wood(), 1.2, 0.08, 1.6, 0, 0.6, 0); for (const s of [-1, 1]) p.box(mt.planks(), 0.06, 0.5, 1.6, s * 0.6, 0.85, 0); p.box(mt.planks(), 1.2, 0.5, 0.06, 0, 0.85, -0.8); p.box(mt.planks(), 1.2, 0.5, 0.06, 0, 0.85, 0.8);
+    for (const s of [-1, 1]) wheelZ(p, s * 0.7, 0.5, 0, 0.5); p.cyl(mt.wood(), 0.05, 0.05, 1.4, 0, 0.55, -1.3, Math.PI / 2, 0, 0, 6);
+    p.sph(lam('hay2', { color: 0xc8a850 }), 0.5, 0, 1.0, 0, 1.2, 0.6, 1.4);
+  });
+  def('statue', 1.6, 1.6, 3.9, 4, (p) => {
+    p.box(stone(), 1.5, 0.5, 1.5, 0, 0.25, 0); p.box(stoneW(), 1.1, 1.0, 1.1, 0, 1.0, 0); p.cyl(stone(), 0.4, 0.55, 1.5, 0, 2.25, 0, 0, 0, 0, 12); p.sph(stone(), 0.3, 0, 3.3, 0);
+    p.box(stone(), 0.18, 1.0, 0.18, 0.55, 2.4, 0, 0, 0, -0.4); p.box(stone(), 0.18, 0.9, 0.18, -0.55, 2.35, 0, 0, 0, 0.4); p.box(stone(), 0.08, 1.2, 0.08, 0.8, 2.9, 0, 0, 0, -0.1);
+  });
+  def('obelisk', 1.3, 1.3, 6.2, 4, (p) => {
+    p.box(stoneW(), 1.3, 0.5, 1.3, 0, 0.25, 0); p.cyl(hiero(), 0.38, 0.58, 5.0, 0, 3.0, 0, 0, Math.PI / 4, 0, 4); p.cyl(mt.glow(0xd8b040), 0.0, 0.38, 0.7, 0, 5.85, 0, 0, Math.PI / 4, 0, 4);
+  });
+  def('brazier', 1.1, 1.1, 1.6, 2, (p) => {
+    for (let i = 0; i < 3; i++) { const a = i * 2.094; p.box(mt.dark(), 0.08, 0.9, 0.08, Math.cos(a) * 0.35, 0.45, Math.sin(a) * 0.35, 0.2 * Math.sin(a), 0, -0.2 * Math.cos(a)); }
+    p.cyl(mt.dark(), 0.55, 0.3, 0.35, 0, 1.0, 0, 0, 0, 0, 14); p.cyl(fire(), 0.0, 0.42, 0.7, 0, 1.4, 0, 0, 0, 0, 8);
+  });
+  def('urn', 0.9, 0.9, 1.3, 1, (p) => { const c = lam('urnX', { color: 0xb86a3a, map: T('terracotta') }); p.sph(c, 0.42, 0, 0.5, 0, 1, 1.1, 1); p.cyl(c, 0.2, 0.3, 0.35, 0, 1.05, 0, 0, 0, 0, 12); p.tor(c, 0.2, 0.04, 0, 1.25, 0, Math.PI / 2, 0, 0); });
+  def('column', 1.3, 1.3, 4.6, 4, (p) => { p.box(mossM(), 1.1, 0.4, 1.1, 0, 0.2, 0); p.cyl(mossM(), 0.42, 0.48, 3.7, 0, 2.25, 0, 0, 0, 0, 12); p.box(mossM(), 1.2, 0.4, 1.2, 0, 4.4, 0); p.box(mossM(), 1.0, 0.18, 1.0, 0, 4.1, 0); });
+  def('columnBroken', 1.3, 1.3, 2.5, 4, (p) => { p.box(mossM(), 1.1, 0.4, 1.1, 0, 0.2, 0); p.cyl(mossM(), 0.42, 0.48, 1.6, 0, 1.2, 0, 0, 0, 0, 12); p.cyl(mossM(), 0.3, 0.42, 0.5, 0.05, 2.1, 0, 0.3, 0, 0.2, 7); p.box(mossM(), 0.8, 0.45, 0.6, 0.9, 0.25, 0.7, 0, 0.5, 0); });
+  def('bigPipe', 5.6, 1.9, 1.9, 4, (p) => {
+    p.cyl(mt.concrete(), 0.9, 0.9, 5.6, 0, 0.95, 0, 0, 0, Math.PI / 2, 20); for (const x of [-2.6, 0, 2.6]) p.tor(mt.dark(), 0.92, 0.08, x, 0.95, 0, 0, Math.PI / 2, 0);
+    p.box(mt.dark(), 5.2, 0.12, 1.6, 0, 0.06, 0); p.cyl(mt.glow(0x2a3a18), 0.7, 0.7, 0.05, 2.78, 0.95, 0, 0, 0, Math.PI / 2, 14);
+  });
+  def('vending', 0.95, 0.85, 1.95, 2, (p, o) => { const c = o.color || 0x40d8ff; p.box(mt.red(), 0.95, 1.95, 0.85, 0, 0.975, 0); p.box(mt.glow(c), 0.7, 1.2, 0.02, -0.06, 1.2, 0.43); p.box(mt.dark(), 0.7, 0.2, 0.02, -0.06, 0.4, 0.43); p.box(mt.glass(), 0.15, 0.7, 0.02, 0.35, 1.2, 0.43); });
+  def('hay', 1.5, 1.0, 1.1, 1, (p) => { const h = lam('hayB', { color: 0xc8a850 }); p.box(h, 1.4, 0.9, 0.9, 0, 0.5, 0); for (const z of [-0.25, 0.25]) p.box(lam('hayS', { color: 0x6a5a30 }), 1.42, 0.06, 0.04, 0, 0.5, z); });
+  def('firewood', 1.9, 0.9, 1.3, 1, (p) => { for (let r = 0; r < 4; r++) for (let i = 0; i < 4 - (r > 2 ? 1 : 0); i++) p.cyl(mt.wood(), 0.16, 0.16, 0.9, -0.55 + i * 0.37 + (r % 2) * 0.18, 0.2 + r * 0.3, 0, Math.PI / 2, 0, 0, 8); p.box(mt.wood(), 0.08, 1.3, 0.08, -1.0, 0.65, 0); p.box(mt.wood(), 0.08, 1.3, 0.08, 1.0, 0.65, 0); });
+  def('snowman', 0.95, 0.95, 1.75, 1, (p) => { const w = lam('snowW', { color: 0xf4f8fc }); p.sph(w, 0.42, 0, 0.42, 0); p.sph(w, 0.31, 0, 1.0, 0); p.sph(w, 0.23, 0, 1.45, 0); p.cyl(mt.orange(), 0.0, 0.05, 0.3, 0, 1.45, 0.3, Math.PI / 2, 0, 0, 6); p.cyl(mt.black(), 0.2, 0.2, 0.22, 0, 1.78, 0, 0, 0, 0, 10); });
+  def('barrelRow', 2.4, 0.9, 1.0, 2, (p) => { for (let i = 0; i < 3; i++) { p.cyl(mt.orange(), 0.37, 0.37, 0.95, -0.8 + i * 0.8, 0.5, 0, 0, 0, 0, 12); p.cyl(mt.dark(), 0.38, 0.38, 0.05, -0.8 + i * 0.8, 0.8, 0, 0, 0, 0, 12); p.cyl(mt.dark(), 0.38, 0.38, 0.05, -0.8 + i * 0.8, 0.25, 0, 0, 0, 0, 12); } });
+  def('sandbagWall', 3.0, 0.9, 1.1, 3, (p) => { const s = lam('sbag', { color: 0xb8a878 }); for (let r = 0; r < 3; r++) for (let i = 0; i < 5 - (r % 2); i++) p.sph(s, 0.32, -1.2 + i * 0.6 + (r % 2) * 0.3, 0.22 + r * 0.3, 0, 1.2, 0.55, 1.5); });
   F.make = (kind, o) => {
     o = o || {}; const fn = B[kind]; if (!fn) return new THREE.Group();
     const p = new Part(); fn(p, o); return p.finish();

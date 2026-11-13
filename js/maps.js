@@ -309,13 +309,14 @@
 
   // =====================================================================
   M.register({
-    id: 'usina', name: 'Usina Nuclear Vulcano', place: 'Complexo nuclear · reator e sala de bombas', tag: 'Novo',
-    desc: 'Bombsite A no pátio do reator (com o tanque de água de refrigeração), salão do turbogerador, Bombsite B na sala de bombas subterrânea a 3 m de profundidade com três acessos. Torres de refrigeração e o prédio de contenção ao fundo.',
+    id: 'usina', name: 'Usina Nuclear Vulcano', place: 'Complexo nuclear · reator na piscina', tag: 'Reformado', houses: 0, ladderCount: 2,
+    desc: 'O reator fica submerso numa piscina letal no subsolo (B): quem cair morre. Passarelas sobre a piscina, sala de bombas, pátio dos transformadores no A e o salão do turbogerador. Torres de refrigeração e o prédio de contenção ao fundo.',
     theme: {
-      mats: { wall: 'concrete', roof: 'concrete', ground: 'asphalt', ground2: 'steelPlate', spawn: 'darkTiles', site: 'darkTiles', stair: 'steelPlate', upper: 'grate', tunnel: 'steelPlate', slab: 'grate', raise: 'concrete', ramp: 'steelPlate' },
+      mats: { wall: 'concrete', roof: 'concrete', ground: 'asphalt', ground2: 'steelPlate', spawn: 'darkTiles', site: 'darkTiles', stair: 'steelPlate', upper: 'grate', tunnel: 'steelPlate', slab: 'grate', raise: 'concrete', ramp: 'steelPlate', pool: 'darkTiles' },
       sky: ['#6c7480', '#a8acae', '#d2c8b4'], fog: 0xb8b2a4, fogNear: 50, fogFar: 190,
       hemi: [0xd8dce0, 0x6a6258, 0.82], sun: [0xfff0dc, 0.7], sunDir: [-50, 85, 35],
       wallH: [7, 2, 3], window: 'industrial', winChance: 0.4, tintVar: 0.16, door: 'metal', gate: 0x8a6a2a,
+      water: 0x2ad8ee, waterGlow: 0x0a5a66, waterOpacity: 0.8, waterFx: 0xbff4ff, deadName: 'Piscina do reator',
       radar: { ground: [110, 112, 116], site: [150, 110, 88], roof: [70, 72, 78] }
     },
     carve(fill, ramp) {
@@ -323,9 +324,13 @@
       fill(9, 3, 17, 4, '.'); ramp(9, 5, 11, 8, 'N', -3, 0, 't');         // rampa coberta CT -> B
       fill(28, 3, 28, 5, '.'); ramp(29, 3, 29, 5, 'E', 0, 1);              // CT -> A
       fill(30, 3, 42, 12, 'a'); fill(40, 3, 42, 4, 'u', 2.5); ramp(40, 5, 42, 6, 'N', 1, 2.5);   // passarela do A
-      fill(4, 9, 15, 17, 'r', -3);                                        // salão subterrâneo (B)
+      fill(4, 9, 15, 17, 'r', -3);                                        // salão do reator (B), subterrâneo
       fill(4, 9, 8, 9, '#'); fill(12, 9, 15, 9, '#');
-      fill(6, 14, 6, 14, '#'); fill(12, 11, 12, 11, '#');                 // pilares
+      fill(6, 14, 6, 14, '#'); fill(14, 11, 14, 11, '#');                 // pilares
+      fill(7, 12, 12, 14, 'k', -6);                                       // PISCINA DO REATOR (letal)
+      fill(7, 11, 12, 11, 'r', -2.0); fill(7, 15, 12, 15, 'r', -2.0);     // passarelas sobre a piscina
+      ramp(6, 11, 6, 11, 'E', -3, -2, 'r'); ramp(13, 11, 13, 11, 'W', -3, -2, 'r');
+      ramp(6, 15, 6, 15, 'E', -3, -2, 'r'); ramp(13, 15, 13, 15, 'W', -3, -2, 'r');
       fill(2, 18, 5, 24, 't', -3); ramp(2, 25, 5, 28, 'S', -3, 0, 't');   // túnel de ventilação
       fill(4, 18, 5, 18, 't', -3);
       ramp(16, 13, 19, 15, 'E', -3, 0, 't');                              // rampa do meio -> B
@@ -339,35 +344,36 @@
     },
     props(a) {
       const c = a.c;
-      // silos do A (colisão invisível + modelo na decoração)
-      a.furn('reactorCore', c(38), c(5), 0); a.furn('waterTank', c(33), c(10), 180);          // reator e tanque de refrigeração (com colisão)
+      // A: pátio dos transformadores, torre de água de refrigeração
+      a.furn('waterTank', c(38), c(5), 0); a.furn('transformer', c(33), c(10), 180); a.furn('transformer', c(35) + 1.1, c(10), 180);
       a.crate(c(35), c(4), 1.2, 2); a.crate(c(41), c(10), 1.2); a.crate(c(41) - 1.2, c(10), 1.2); a.barrel(c(31), c(5)); a.barrel(c(31) + 0.6, c(5) + 0.8);
       a.block(c(36), c(9), 3, 1.1, 1.4, 'steelPlate', 0x9aa0a4);
-      // salão B
-      a.furn('bigPump', c(5), c(11), 0, { n: 1 }); a.furn('bigPump', c(14), c(13), 270, { n: 2, color: 'red' });   // bombas d'água do circuito primário
-      a.crate(c(5), c(16) + 0.6, 1.2, 2); a.crate(c(15), c(16) + 0.6, 1.2); a.barrel(c(10), c(10)); a.barrel(c(10) + 0.8, c(10));
+      // B: o reator dentro da piscina e as bombas d'água
+      a.furn('reactorPool', 30, 40.5, 0, { y: -6 });
+      a.furn('bigPump', c(5), c(16), 0, { n: 1 }); a.furn('bigPump', c(14), c(16), 270, { n: 2, color: 'red' });
+      a.crate(c(15), c(10), 1.2, 2); a.crate(c(5), c(10), 1.2); a.barrel(c(10), c(10)); a.barrel(c(10) + 0.8, c(10));
       // meio e pátio
       a.crate(c(21) - 0.3, c(18), 1.2, 2); a.crate(c(23), c(24), 1.2); a.block(c(22), c(12), 2.6, 1.0, 1.0, 'concrete', 0xb0aaa0);
       a.container(c(39), c(22), false, 0x8a6a2a); a.crate(c(42), c(28), 1.2, 2); a.barrel(c(37), c(17)); a.crate(c(32), c(23), 1.2);
       a.crate(c(10), c(30), 1.2, 2); a.car(c(28), c(34), true, 0x4a5a6a); a.crate(c(19) + 0.3, c(3), 1.2);
       a.furn('turbine', c(28) + 1.2, c(14) + 1.6, 0);          // turbogerador
       a.door(26, 14, 'W', { kind: 'metal' });                  // salão de turbinas
-      a.door(4, 18, 'N', { width: 2, kind: 'metal' });         // ventilação -> salão B
+      a.door(4, 18, 'N', { width: 2, kind: 'metal' });         // ventilação -> salão do reator
       a.gate(18, 3, 'W', 2); a.gate(27, 3, 'E', 3); a.gate(21, 6, 'S', 4);
       a.gate(21, 32, 'N', 4); a.gate(14, 32, 'W', 2); a.gate(31, 32, 'E', 4);
     },
     spots: P => ({
       tSpawn: [P(17, 34), P(20, 35), P(23, 34), P(26, 35), P(29, 34)],
       ctSpawn: [P(19, 4), P(21, 3), P(23, 5), P(24, 3), P(26, 5)],
-      A: P(36, 7), B: P(9, 13),
-      plantA: [P(36, 7), P(33, 5), P(39, 10), P(34, 11)], plantB: [P(9, 12), P(6, 11), P(13, 14), P(8, 16)],
+      A: P(36, 7), B: P(5, 13),
+      plantA: [P(36, 7), P(33, 5), P(39, 10), P(34, 11)], plantB: [P(5, 13), P(5, 12), P(14, 13), P(9, 11)],
       routes: {
         A: [[P(33, 33), P(39, 28), P(39, 18), P(39, 14), P(37, 9)], [P(22, 30), P(22, 18), P(24, 14), P(27, 14), P(29, 11), P(34, 7)]],
-        B: [[P(10, 31), P(4, 27), P(4, 21), P(5, 19), P(8, 14)], [P(22, 30), P(22, 16), P(19, 14), P(16, 14), P(11, 13)]]
+        B: [[P(10, 31), P(4, 27), P(4, 21), P(5, 19), P(5, 15), P(5, 13)], [P(22, 30), P(22, 16), P(19, 14), P(16, 14), P(14, 14), P(13, 12)]]
       },
       holdA: [P(37, 10, 180), P(41, 7, 160), P(32, 7, 140), P(33, 4, 150)], holdB: [P(7, 10, 180), P(13, 12, -90), P(10, 16, 0), P(5, 14, 180)],
       holdMid: [P(22, 8, 180), P(23, 11, 180)],
-      postA: [P(33, 11, 180), P(40, 4, 180), P(37, 11, 90), P(31, 4, 90)], postB: [P(13, 10, 0), P(7, 16, 0), P(10, 12, -90), P(12, 16, 90)],
+      postA: [P(33, 11, 180), P(40, 4, 180), P(37, 11, 90), P(31, 4, 90)], postB: [P(13, 10, 0), P(7, 16, 0), P(8, 10, -90), P(12, 16, 90)],
       lurk: [P(22, 22, 0), P(41, 25, 0), P(4, 22, 0)]
     }),
     decor(d) {
@@ -377,21 +383,26 @@
       d.coolingTower(185, 22, 1); d.coolingTower(196, 82, 1.1);
       d.containment(112, -42, 1);
       d.pipe(c(44) + 2, c(8), 175, c(8), 6, 0.9, 0x5a7a9a); d.pipe(c(44) + 2, c(27), 185, c(27), 5, 0.9, 0x5a7a9a);
-      // sala de bombas (B, subterrânea): tubulação, ventiladores e placas
+      // piscina do reator: brilho ciano, faixas de perigo, placas e guindaste de manutenção
+      d.glow(30, -4.6, 40.5, 0x40e8ff, 1.6, 30); d.glow(30, -0.4, 40.5, 0x40e8ff, 0.6, 16);
+      d.box(0.4, 0.03, 9.4, 20.8, -2.985, 40.5, 0xffffff, 'hazard'); d.box(0.4, 0.03, 9.4, 39.2, -2.985, 40.5, 0xffffff, 'hazard');
+      d.box(18, 0.03, 0.3, 30, -1.985, 35.82, 0xffffff, 'hazard'); d.box(18, 0.03, 0.3, 30, -1.985, 45.18, 0xffffff, 'hazard');
+      d.sign('CUIDADO · PISCINA DO REATOR · QUEDA FATAL', '#f0d020', '#111111', 'rad', 12.03, -1.6, c(13), Math.PI / 2, 3.2, 0.95);
+      d.sign('CUIDADO · PISCINA DO REATOR · QUEDA FATAL', '#f0d020', '#111111', 'rad', 16 * S - 0.03, -1.6, c(11), -Math.PI / 2, 3.2, 0.95);
+      d.box(0.7, 0.6, 11, 21, 1.0, 40.5, 0xd8a72a, 'metal'); d.box(0.7, 0.6, 11, 39, 1.0, 40.5, 0xd8a72a, 'metal');
+      d.box(18.4, 0.7, 0.8, 30, 1.05, 37.2, 0xd8a72a, 'metal'); d.box(1.6, 0.9, 1.4, 27, 0.4, 37.2, 0x3a3e44, 'metal'); d.cyl(0.05, 2.4, 27, -1.1, 37.2, 0x222222); d.box(0.5, 0.5, 0.5, 27, -2.45, 37.2, 0xd8a72a, 'metal');
+      d.sign('SALA DO REATOR · CIRCUITO PRIMÁRIO', '#2a5a8a', '#ffffff', null, c(10), -0.9, 10 * S + 0.03, 0, 2.6, 0.8);
       d.pipe(c(4) - 1, 10 * S + 0.45, c(8) + 1, 10 * S + 0.45, 0.85, 0.24, 0x2f5f8f); d.pipe(c(12) - 1, 10 * S + 0.45, c(15) + 1, 10 * S + 0.45, 0.85, 0.24, 0x2f5f8f);
       d.pipe(c(5), 18 * S - 0.45, c(15) + 1, 18 * S - 0.45, 0.6, 0.3, 0x3a8a5a); d.pipe(4 * S + 0.45, c(10), 4 * S + 0.45, c(17), 0.9, 0.2, 0xa8302a);
       d.fan(16 * S - 0.1, -1.6, c(11), -Math.PI / 2, 0.7); d.fan(16 * S - 0.1, -1.6, c(17), -Math.PI / 2, 0.7);
-      d.sign('SALA DE BOMBAS · CIRCUITO PRIMÁRIO', '#2a5a8a', '#ffffff', null, c(10), -0.9, 10 * S + 0.03, 0, 2.6, 0.8);
-      d.sign('RADIAÇÃO · ÁREA CONTROLADA', '#f0d020', '#111111', 'rad', 4 * S + 0.03, -1.4, c(14), Math.PI / 2, 1.6, 0.8);
       d.sign('PERIGO ALTA TENSÃO', '#f0d020', '#111111', 'volt', 26 * S + 0.03, 2.4, c(12), -Math.PI / 2, 1.4, 0.7);
       d.sign('SALÃO DO TURBOGERADOR', '#e8e4dc', '#1a1a1a', null, 26 * S - 0.03, 3.2, c(15), -Math.PI / 2, 2.2, 0.6);
-      d.sign('REATOR 1', '#e8e4dc', '#1a1a1a', null, c(36), 4.4, 3 * S + 0.03, 0, 2.0, 0.6);
+      d.sign('PÁTIO DOS TRANSFORMADORES', '#e8e4dc', '#1a1a1a', null, c(36), 4.4, 3 * S + 0.03, 0, 2.6, 0.6);
       d.pipe(c(20), 15 * S, c(25), 15 * S, 4.5, 0.35, 0x8a3a2a); d.pipe(c(36), 13 * S, c(43), 13 * S, 3.8, 0.3, 0x3a6a8a);
       d.pipe(c(9), 3 * S + 0.4, c(17), 3 * S + 0.4, 3.4, 0.25, 0x6a6a30);
-      for (const [x, z] of [[c(22), c(20)], [c(39), c(20)], [c(10), c(31)], [c(9), c(12)], [c(13), c(16)]]) d.lamp(x, z, 4.2, 0xfff0c0);
-      d.letter('B', 16 * S + 0.03, -1.3, c(14), 0, Math.PI / 2, 2.0);
+      for (const [x, z] of [[c(22), c(20)], [c(39), c(20)], [c(10), c(31)], [c(5), c(10)], [c(14), c(10)]]) d.lamp(x, z, 4.2, 0xfff0c0);
+      d.letter('B', c(5), -2.97, c(13), -Math.PI / 2, 0, 2.4);
       d.letter('A', c(39), 2.2, 13 * S + 0.03, 0, 0, 2.0);
-      d.box(5, 0.4, 0.4, c(22), 6.5, 10 * S, 0xd9a521);
     }
   });
 

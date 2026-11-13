@@ -15,7 +15,7 @@
   let mouseL = false, mouseR = false, paused = true, started = false, built = false;
   let shakeT = 0, shakeAmt = 0, lastFrame = 0;
   let viewTarget = null, specIdx = 0;
-  let bob = 0, vmKick = 0, vmSwitch = 0, inspectT = 0, lastCur = '', vmSway = { x: 0, y: 0 };
+  let bob = 0, vmKick = 0, vmSwitch = 0, inspectT = 0, lastCur = '', vmSway = { x: 0, y: 0 }, vmThrowT = 0;
 
   // ---------------- Inicialização ----------------
   function buildWorld() {
@@ -161,6 +161,7 @@
     a.onDamaged = (dmg, attacker, from) => { if (a === Gm.human && dmg > 0) { H.damageFrom(a, from); Gm.shakeLocal(0.15); } if (a.remote && dmg > 0 && G.MP) G.MP.toAgent(a, { t: 'dm', f: from ? [from.x, from.y, from.z] : null }); };
     a.onLand = (vy) => { G.Audio.land(a.pos); };
     a.onFire = () => { if (a === viewTarget) { vmKick = 1; vmFlashT = 0.045; } };
+    a.onThrow = () => { if (a === viewTarget) vmThrowT = 0.42; };
   }
   Gm.sideScore = () => {
     const g0side = Gm.human ? Gm.human.team : 'T';
@@ -517,6 +518,10 @@
       footstep(a, dt);
       // fogo sob o agente (desliza para fora? só dano já tratado)
       if (a.pos.y < -5) a.applyDamage(999, 1, 'generic', null, null);
+      if (M.deadlyAt(a.pos.x, a.pos.y, a.pos.z)) {
+        C.dust(new THREE.Vector3(a.pos.x, a.pos.y + 0.7, a.pos.z), 1.9, M.theme.waterFx || 0xbfeaf2); if (G.Audio.splash) G.Audio.splash(a.pos);
+        a.applyDamage(999, 1, 'generic', null, { id: 'pool', name: M.theme.deadName || 'Líquido letal', cat: 'grenade', reward: 0 }, null);
+      }
     }
     if (Gm.bomb.state === 'carried' || Gm.bomb.state === 'dropped') Gm.bomb.state = Gm.agents.some(a => a.alive && a.inv.c4) ? 'carried' : 'dropped';
     updateBomb(dt);
@@ -589,6 +594,18 @@
     m.root.position.copy(a.pos);
     m.root.rotation.set(0, a.isHuman && G.Cheats ? G.Cheats.modelYaw(a) : a.yaw, 0);
     m.upper.rotation.x = a.pitch * 0.7;
+    {   // arma na mão: sacar e recarregar também aparecem nos bonecos
+      const gh = m.gunHold, def = a.wdef(); if (!gh.userData.b) gh.userData.b = gh.position.clone();
+      let gy = 0, gz = 0, grx = 0, grz = 0;
+      const dTot = Math.max(0.2, (def.draw || 1) * 0.55);
+      if (a.drawT > 0) { const q = 1 - U.clamp(a.drawT / dTot, 0, 1), u = 1 - E3(q); gy -= 0.3 * u; grx -= 0.8 * u; }
+      if (a.reloadT > 0 && def.mag && def.cat !== 'knife' && def.cat !== 'equip') {
+        const rp = 1 - U.clamp(a.reloadT / def.reload, 0, 1);
+        const tilt = def.shellReload ? 1 : E3(sg(rp, 0, 0.16)) * (1 - E3(sg(rp, 0.84, 1)));
+        grz -= 0.5 * tilt; grx += 0.2 * tilt; gy -= 0.04 * tilt; gz += 0.04 * Math.sin(Math.PI * sg(rp, 0.74, 0.84));
+      }
+      gh.position.set(gh.userData.b.x, gh.userData.b.y + gy, gh.userData.b.z + gz); gh.rotation.set(grx, 0, grz);
+    }
     if (m.head) m.head.rotation.x = a.pitch * 0.3;
     const sp = a.speed2d();
     m.walk += dt * sp * 1.6;
@@ -629,6 +646,58 @@
     G.Audio.listener(eye, t.yaw);
   }
 
+  // ---- animações de sacar / recarregar / arremessar (1ª pessoa) ----
+  const E3 = x => x * x * (3 - 2 * x), sg = (p, a, b) => U.clamp((p - a) / (b - a), 0, 1);
+  // devolve quanto falta do saque (1 → 0) e preenche os deslocamentos em o
+  function vmAnim(t, def, o) {
+    const V = vm.userData, lh = V.lhand, mg = V.vmag;
+    // sacar: a arma sobe de baixo, com um pequeno assentamento no fim
+    const dTot = Math.max(0.2, (def.draw || 1) * 0.55);
+    const dr = t.drawT > 0 ? U.clamp(t.drawT / dTot, 0, 1) : 0;
+    if (dr > 0) {
+      const q = 1 - dr, u = 1 - E3(q), ov = Math.sin(q * Math.PI * 2.4) * 0.012 * (1 - q);
+      if (def.cat === 'knife') { o.y -= 0.26 * u; o.x += 0.06 * u; o.rx -= 1.2 * u; o.rz -= 2.2 * u; o.ry += 0.5 * u; }
+      else if (def.cat === 'grenade' || def.cat === 'c4' || def.cat === 'equip') { o.y -= 0.3 * u; o.z += 0.1 * u; o.rx -= 0.8 * u; o.rz += 0.3 * u; }
+      else { o.y -= 0.34 * u - ov; o.x += 0.14 * u; o.z += 0.1 * u; o.rx -= 0.95 * u; o.rz += 0.55 * u; o.ry -= 0.3 * u; }
+    }
+    // recarregar
+    if (lh && lh.userData.base) lh.position.copy(lh.userData.base);
+    const reloading = t.reloadT > 0 && def.mag && def.cat !== 'knife' && def.cat !== 'equip';
+    let magReal = true;
+    if (reloading) {
+      const rp = 1 - U.clamp(t.reloadT / def.reload, 0, 1);
+      if (def.shellReload) {
+        const k = Math.sin(Math.PI * sg(rp, 0.2, 0.85));
+        o.rx += 0.2; o.rz -= 0.5; o.y += 0.01;
+        if (lh) { lh.position.y -= 0.03 * k; lh.position.z += 0.17 * k; }
+      } else {
+        const a = E3(sg(rp, 0, 0.16)), b = sg(rp, 0.16, 0.3), c = E3(sg(rp, 0.3, 0.56)), r = E3(sg(rp, 0.7, 0.92)), pulse = Math.sin(Math.PI * sg(rp, 0.74, 0.84));
+        const tilt = a * (1 - E3(sg(rp, 0.84, 1)));
+        o.rz -= 0.72 * tilt; o.rx += 0.1 * tilt; o.y += 0.025 * tilt; o.x -= 0.035 * tilt;
+        o.z += 0.035 * pulse; o.rx -= 0.12 * pulse;                      // puxa o ferrolho / armar
+        const handAmt = a * (1 - r), handDown = b * (1 - c);
+        if (lh && mg) { lh.position.lerpVectors(lh.userData.base, mg.pos, handAmt * 0.9); lh.position.y -= 0.11 * handDown; lh.position.z += 0.03 * handDown; }
+        magReal = rp < 0.16 || rp >= 0.56;
+        if (mg) {
+          mg.old.visible = rp >= 0.16 && rp < 0.52; mg.neu.visible = rp >= 0.3 && rp < 0.56;
+          if (mg.old.visible) { const s = sg(rp, 0.16, 0.52); mg.old.position.set(mg.pos.x, mg.pos.y - 0.03 * sg(rp, 0.16, 0.24) - 0.45 * s * s, mg.pos.z + 0.03 * s); mg.old.rotation.set(s * 2.4, 0, s * 1.4); }
+          if (mg.neu.visible) { mg.neu.position.set(mg.pos.x, mg.pos.y - 0.11 * (1 - c), mg.pos.z + 0.03 * (1 - c)); mg.neu.rotation.set(0, 0, 0); }
+        }
+      }
+    }
+    if (mg) { for (const m of mg.real) m.visible = magReal; if (!reloading) mg.old.visible = mg.neu.visible = false; }
+    // granada: mão para trás com o pino puxado e arremesso para a frente
+    if (def.cat === 'grenade') {
+      const ts = t.throwState, pin = V.pin;
+      if (ts) { const e = E3(U.clamp((Gm.time - ts.t) / 0.3, 0, 1)); o.y += 0.05 * e; o.z += 0.09 * e; o.rx += 0.5 * e; o.x -= 0.02 * e; }
+      if (vmThrowT > 0) { const p = 1 - vmThrowT / 0.42, sw = Math.sin(Math.PI * p); o.z -= 0.16 * sw; o.y -= 0.035 * sw; o.rx -= 0.95 * sw; }
+      if (pin) {
+        if (ts) { const s = Gm.time - ts.t; pin.visible = s < 0.7; pin.position.set(0.02 + s * 0.4, 0.045 - s * s * 3.2, -0.01 + s * 0.12); pin.rotation.set(s * 8, s * 5, 0); }
+        else pin.visible = false;
+      }
+    }
+    return dr;
+  }
   function updateViewmodel(dt) {
     const t = viewTarget || Gm.human;
     const w = t.weapon(); const def = w ? w.def : G.W.knife;
@@ -649,20 +718,20 @@
     if (t.onGround) bob += dt * sp * 1.5;
     const bobAmt = Math.min(1, sp / 6) * 0.012;
     vmKick = Math.max(0, vmKick - dt * 9);
-    vmSwitch = Math.max(0, vmSwitch - dt * 3.5);
+    vmSwitch = Math.max(0, vmSwitch - dt * 3.5); vmThrowT = Math.max(0, vmThrowT - dt);
     vmSway.x += (0 - vmSway.x) * Math.min(1, dt * 8);
-    const reload = t.reloadT > 0 && !def.shellReload ? Math.sin(Math.min(1, 1 - t.reloadT / def.reload) * Math.PI) : 0;
+    const ao = { x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0 };
+    const drawAmt = vmAnim(t, def, ao);
     const kn = def.cat === 'knife' && Gm.time - t.lastShot < 0.35 ? Math.sin((Gm.time - t.lastShot) / 0.35 * Math.PI) : 0;
-    const nade = t.throwState ? 1 : 0;
     vm.position.set(
-      base.x + Math.sin(bob) * bobAmt - kn * 0.12,
-      base.y + Math.abs(Math.cos(bob)) * bobAmt - vmSwitch * 0.25 - reload * 0.12 - (t.crouch * 0.01) + nade * 0.06,
-      base.z + vmKick * (def.cat === 'sniper' || def.pellets > 1 ? 0.09 : 0.035) - kn * 0.1 + nade * 0.08
+      base.x + Math.sin(bob) * bobAmt - kn * 0.12 + ao.x,
+      base.y + Math.abs(Math.cos(bob)) * bobAmt - (t.crouch * 0.01) + ao.y,
+      base.z + vmKick * (def.cat === 'sniper' || def.pellets > 1 ? 0.09 : 0.035) - kn * 0.1 + ao.z
     );
-    let rx = vmKick * 0.08 + reload * 0.6 + vmSwitch * 0.5, ry = 0, rz = 0;
-    if (inspectT > 0) { inspectT -= dt; const k = Math.sin(Math.min(1, (2.2 - inspectT) / 2.2) * Math.PI); ry = k * 0.9; rz = k * 0.5; }
-    { const gu = vm.userData.gun; if (gu && gu.userData.anim) gu.userData.anim({ inspect: inspectT > 0 ? Math.min(1, (2.2 - inspectT) / 2.2) : -1, draw: vmSwitch }); }
-    if (kn) { ry = kn * 0.6; rz = -kn * 0.8; }
+    let rx = vmKick * 0.08 + ao.rx, ry = ao.ry, rz = ao.rz;
+    if (inspectT > 0) { inspectT -= dt; const k = Math.sin(Math.min(1, (2.2 - inspectT) / 2.2) * Math.PI); ry += k * 0.9; rz += k * 0.5; }
+    { const gu = vm.userData.gun; if (gu && gu.userData.anim) gu.userData.anim({ inspect: inspectT > 0 ? Math.min(1, (2.2 - inspectT) / 2.2) : -1, draw: drawAmt }); }
+    if (kn) { ry += kn * 0.6; rz += -kn * 0.8; }
     vm.rotation.set(rx, ry, rz);
     vm.visible = t.alive && !(t.zoom > 0 && def.scope) && !(t.isHuman && G.Cheats && G.Cheats.third());
     if (G.Cheats && Math.abs(vmCam.fov - G.Cheats.cfg.vis.vmFov) > 0.1) { vmCam.fov = G.Cheats.cfg.vis.vmFov; vmCam.updateProjectionMatrix(); }
