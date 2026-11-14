@@ -84,7 +84,7 @@
     $('scoreT').textContent = sideScore.T; $('scoreCT').textContent = sideScore.CT;
     const tm = $('timer');
     if (game.bomb.state === 'planted') { tm.textContent = '💣'; tm.className = 'timer bomb'; tm.style.opacity = (Math.sin(game.time * 8) > 0 ? 1 : 0.4); }
-    else { tm.style.opacity = 1; tm.className = 'timer'; tm.textContent = game.phase === 'freeze' ? U.fmtTime(game.phaseT) : game.phase === 'live' ? U.fmtTime(game.roundTimeLeft()) : '0:00'; }
+    else { tm.style.opacity = 1; tm.className = 'timer'; tm.textContent = game.phase === 'freeze' ? U.fmtTime(game.phaseT) : game.phase === 'live' ? (game.settings.mode === 'util' ? '∞' : U.fmtTime(game.roundTimeLeft())) : '0:00'; }
     const alive = t => game.agents.filter(a => a.team === t).map(a => `<i class="${a.alive ? '' : 'dead'}"></i>`).join('');
     const ah = alive('T') + '|' + alive('CT');
     if (H._alive !== ah) { $('aliveT').innerHTML = alive('T'); $('aliveCT').innerHTML = alive('CT'); H._alive = ah; }

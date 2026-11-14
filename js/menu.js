@@ -131,6 +131,7 @@
           ${[1, 2, 3, 4].map(i => `<div class="bot"><div class="av">B</div><div><b>Bot ${i}</b><small>${DIFFS[s.diff]}</small></div></div>`).join('')}
         </div>
       </section>
+      <button class="mm-online util" id="mmUtil">🎯 TREINO DE UTILITÁRIOS 1v0</button>
       <button class="mm-online priv" id="mmPriv">🔒 SALA PRIVADA</button>
       <button class="mm-online" id="mmOnline">🤖 TREINO OFFLINE</button>
       <button class="mm-go" id="mmGo"><span>JOGAR</span><small>Servidor público · ${esc(M.defs[s.map].name)}</small></button>`;
@@ -141,6 +142,7 @@
     body.querySelectorAll('.mm-new').forEach(el => el.onclick = () => { const n = NEWS[el.dataset.i]; if (n.map) selectMap(n.map); });
     $('mmGo').onclick = () => { G.Audio.init(); if (G.MP) G.MP.quickPlay(s.map); else startQueue(); };
     $('mmOnline').onclick = () => { G.Audio.init(); startQueue(); };
+    $('mmUtil').onclick = () => { G.Audio.init(); launch('util'); };
     $('mmPriv').onclick = () => { G.Audio.init(); if (G.MP) { G.MP.pub = null; G.MP.open(); } };
   }
   function selectMap(id) {
@@ -189,8 +191,8 @@
       }, U.randi(120, 280));
     };
   }
-  function launch() {
-    const s = Gm().settings;
+  function launch(mode) {
+    const s = Gm().settings; s.mode = mode || null;
     if (s.teamPick === 'R') s.team = Math.random() < 0.5 ? 'T' : 'CT';
     const d = M.defs[s.map];
     const ld = $('loading');

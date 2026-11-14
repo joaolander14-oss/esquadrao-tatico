@@ -639,6 +639,7 @@
         chk('srv.infArmor', 'Colete e capacete infinitos'), chk('srv.freezeBots', 'Congelar os bots'), chk('srv.noclip', 'Noclip (voar e atravessar paredes: WASD, Espaço sobe, Ctrl desce)')] },
       { name: 'Física e armas (só offline)', items: [sld('srv.jump', 'Força do pulo', 1, 3, 0.1, '×'), sld('srv.gravity', 'Gravidade', 0.2, 2, 0.1, '×'), sld('srv.fireRate', 'Cadência de tiro', 1, 6, 0.5, '×'),
         sld('srv.dmgMul', 'Multiplicador de dano', 1, 10, 0.5, '×'), chk('misc.noRecoil', 'Sem recuo (remove o padrão de recuo)')] }] },
+    { id: 'util', name: 'Utilitários', icon: '✹', custom: body => G.Lineups ? G.Lineups.renderInto(body) : (body.textContent = 'Módulo de lineups indisponível.') },
     { id: 'skins', name: 'Skins', icon: '◆', custom: renderSkins },
     { id: 'cfg', name: 'Config', icon: '⚙', custom: renderConfig },
     { id: 'lua', name: 'Scripts', icon: '{}', custom: renderScripts }

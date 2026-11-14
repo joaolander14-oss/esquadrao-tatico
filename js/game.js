@@ -124,9 +124,11 @@
         const human = new G.Agent(settings.team, 'Você', true);
         Gm.human = human;
         Gm.agents.push(human);
-        for (let i = 0; i < 4; i++) Gm.agents.push(new G.Agent(settings.team, names.pop(), false));
-        const other = settings.team === 'T' ? 'CT' : 'T';
-        for (let i = 0; i < 5; i++) Gm.agents.push(new G.Agent(other, names.pop(), false));
+        if (settings.mode !== 'util') {        // treino de utilitários = 1v0: só o jogador
+          for (let i = 0; i < 4; i++) Gm.agents.push(new G.Agent(settings.team, names.pop(), false));
+          const other = settings.team === 'T' ? 'CT' : 'T';
+          for (let i = 0; i < 5; i++) Gm.agents.push(new G.Agent(other, names.pop(), false));
+        }
       }
       for (const a of Gm.agents) { a.group = a.team === settings.team ? 0 : 1; makeModel(a); hookAgent(a); }
       if (G.AntiCheat) G.AntiCheat.reset();
@@ -134,13 +136,14 @@
       Gm.maxRounds = settings.rounds;
       Gm.round = 0; Gm.groupScore = [0, 0]; Gm.lossStreak = { T: 0, CT: 0 }; Gm.history = [];
       Gm.time = 0;
-      Gm.freezeTime = settings.rounds <= 6 ? 7 : 10; Gm.roundLength = 115; Gm.buyTime = 20; Gm.bombTime = 40;
+      Gm.freezeTime = settings.mode === 'util' ? 0.2 : settings.rounds <= 6 ? 7 : 10; Gm.roundLength = settings.mode === 'util' ? 1e9 : 115; Gm.buyTime = 20; Gm.bombTime = 40;
       $('menu').classList.add('hidden'); $('loading').classList.add('hidden');
       if (G.Menu) G.Menu.hide();
       H.show(true);
       if (G.Touch) { G.Touch.decide(); G.Touch.show(true); }
       started = true;
       if (Gm.clientMode) G.MP.guestReady(); else nextRound();
+      if (settings.mode === 'util' && G.Lineups) G.Lineups.start();
       lockPointer();
       paused = false;
       lastFrame = performance.now();
@@ -169,7 +172,7 @@
     return r;
   };
   Gm.roundTimeLeft = () => Gm.roundLength - Gm.roundTime;
-  Gm.canBuy = (a) => a.alive && (Gm.phase === 'freeze' || (Gm.phase === 'live' && Gm.roundTime < Gm.buyTime)) && M.isBuyZone(a.pos.x, a.pos.z, a.team);
+  Gm.canBuy = (a) => settings.mode === 'util' ? a.alive : a.alive && (Gm.phase === 'freeze' || (Gm.phase === 'live' && Gm.roundTime < Gm.buyTime)) && M.isBuyZone(a.pos.x, a.pos.z, a.team);
 
   function nextRound() {
     Gm.round++;
@@ -194,7 +197,7 @@
     // bomba para um T aleatório (bots ou humano)
     const ts = Gm.agents.filter(a => a.team === 'T');
     const carrier = U.pick(ts);
-    carrier.inv.c4 = true; Gm.bombCarrier = carrier;
+    if (carrier) { carrier.inv.c4 = true; Gm.bombCarrier = carrier; }
     // decisão de economia dos times de bots
     const eco = {};
     for (const t of ['T', 'CT']) {
@@ -311,7 +314,7 @@
     checkRoundEnd();
   };
   function checkRoundEnd() {
-    if (Gm.roundEnded || Gm.phase !== 'live') return;
+    if (Gm.roundEnded || Gm.phase !== 'live' || settings.mode === 'util') return;
     const tAlive = Gm.agents.some(a => a.team === 'T' && a.alive), ctAlive = Gm.agents.some(a => a.team === 'CT' && a.alive);
     if (!ctAlive) return endRound('T', 'elim');
     if (!tAlive && Gm.bomb.state !== 'planted') return endRound('CT', 'elim');
@@ -402,7 +405,7 @@
   const isLocked = () => (G.Touch && G.Touch.active) || document.pointerLockElement === (renderer && renderer.domElement);
   document.addEventListener('pointerlockchange', () => {
     if (!started) return;
-    if (!isLocked() && !H.buyOpen && !(G.Cheats && G.Cheats.open) && !(G.Report && G.Report.open) && Gm.phase !== 'menu') pause(true);
+    if (!isLocked() && !H.buyOpen && !(G.Cheats && G.Cheats.open) && !((G.Report && G.Report.open) || (G.Lineups && G.Lineups.open)) && Gm.phase !== 'menu') pause(true);
   });
   function pause(on) {
     paused = on;
@@ -411,7 +414,7 @@
   }
   // giro da mira em "contagens" de mouse (o toque usa a mesma conta)
   Gm.look = (mx, my) => {
-    if (!started || paused || H.buyOpen || (G.Cheats && G.Cheats.open) || (G.Report && G.Report.open)) return;
+    if (!started || paused || H.buyOpen || (G.Cheats && G.Cheats.open) || ((G.Report && G.Report.open) || (G.Lineups && G.Lineups.open))) return;
     const h = Gm.human; if (!h.alive) return;
     const w = viewTarget === h ? h.weapon() : null;
     let k = settings.sens * 0.022 * U.D2R;
@@ -433,7 +436,7 @@
   document.addEventListener('mousedown', e => {
     G.Audio.init();
     if (!started || paused) return;
-    if (H.buyOpen || (G.Cheats && G.Cheats.open) || (G.Report && G.Report.open)) return;
+    if (H.buyOpen || (G.Cheats && G.Cheats.open) || ((G.Report && G.Report.open) || (G.Lineups && G.Lineups.open))) return;
     if (!isLocked()) { lockPointer(); return; }
     if (!Gm.human.alive) { if (e.button === 0) cycleSpectate(); return; }
     if (e.button === 0) mouseL = true; if (e.button === 2) mouseR = true;
@@ -493,7 +496,7 @@
     inp.fire = mouseL && !H.buyOpen; inp.fire2 = mouseR && !H.buyOpen;
     inp.reload = !!keys.KeyR; inp.use = !!keys.KeyE;
     if (G.Touch) G.Touch.apply(inp);
-    if (G.Report && G.Report.open) { inp.fwd = inp.side = 0; inp.fire = inp.fire2 = inp.jump = false; }
+    if ((G.Report && G.Report.open) || (G.Lineups && G.Lineups.open)) { inp.fwd = inp.side = 0; inp.fire = inp.fire2 = inp.jump = false; }
   }
 
   // ---------------- Loop ----------------
@@ -534,6 +537,7 @@
     if (Gm.phase === 'live' && !Gm.roundEnded) checkRoundEnd();
     M.tickDoors(dt);
     if (G.Cheats) G.Cheats.afterStep(dt);
+    if (settings.mode === 'util' && G.Lineups) G.Lineups.utilStep(dt);
     if (G.AntiCheat) G.AntiCheat.tick(dt);
     if (G.MP) G.MP.hostTick(dt);
     // dicas para o humano
@@ -780,6 +784,7 @@
     updateModels(dt);
     updateCamera(dt);
     G.Smoke.frame(camera, renderer);
+    if (G.Lineups) G.Lineups.frame(camera);
     updateViewmodel(dt);
     M.updateWeather(dt, camera);
     M.updateDoors(dt);
@@ -796,6 +801,7 @@
   function quitToMenu() {
     started = false; paused = true; Gm.phase = 'menu';
     if (G.MP) G.MP.pub = null;
+    if (settings.mode === 'util') { settings.mode = null; if (G.Lineups) G.Lineups.stop(); }
     if (G.MP && G.MP.role) G.MP.leave();
     H.show(false); H.closeBuy(); H.toggleScoreboard(false, Gm);
     if (G.Touch) G.Touch.show(false);

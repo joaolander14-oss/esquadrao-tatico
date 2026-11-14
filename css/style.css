@@ -305,3 +305,30 @@ body.touch #buymenu,body.touch #scoreboard,body.touch .menuBox{max-height:100vh;
 #rpPanel button.pri{width:100%;height:42px;margin-top:8px;border:0;border-radius:8px;background:linear-gradient(135deg,#ff7a5c,#e0453a);color:#fff;font:700 18px Rajdhani,Arial;letter-spacing:2px;cursor:pointer}
 #rpPanel .rp-note{color:#6b7686;font-size:12px;line-height:1.4}
 #rpPanel .rp-msg{min-height:18px;font-size:13px;margin-top:6px}#rpPanel .rp-msg.ok{color:#6fe08a}#rpPanel .rp-msg.bad{color:#ff8a7a}
+
+#luPanel{position:fixed;top:0;right:0;bottom:0;width:min(430px,96vw);z-index:58;background:linear-gradient(180deg,#141922f2,#0d1117f2);border-left:1px solid #ffffff1c;color:#e9edf2;font-family:"Segoe UI",Roboto,Arial,sans-serif;display:flex;flex-direction:column}
+#luPanel.hidden{display:none}
+#luPanel .lu-head{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #ffffff14}
+#luPanel .lu-head b{font-family:Rajdhani,Arial;font-size:20px;letter-spacing:3px;color:#7cf3ff}
+#luPanel .lu-head button{background:none;border:0;color:#9aa6b5;font-size:20px;cursor:pointer}
+#luPanel .lu-body{overflow:auto;padding:10px 14px}
+.lu-box .lu-row{display:flex;align-items:center;gap:10px;margin:7px 0;flex-wrap:wrap}.lu-box .lu-row>span{width:74px;color:#8a96a6;font-size:12px}
+.lu-seg{display:flex;gap:4px;flex-wrap:wrap}.lu-seg button{height:28px;padding:0 10px;border:1px solid #ffffff22;border-radius:6px;background:#ffffff0c;color:#cfd6e0;font-size:12px;cursor:pointer}.lu-seg button.on{background:#7cf3ff22;border-color:#7cf3ff;color:#7cf3ff}
+.lu-opts{gap:14px}.lu-opts label{font-size:12px;color:#cfd6e0;display:flex;gap:5px;align-items:center;cursor:pointer}
+.lu-list{display:grid;gap:5px;margin-top:8px}
+.lu-item{display:grid;grid-template-columns:10px 1fr;gap:2px 8px;align-items:center;padding:7px 9px;border:1px solid #ffffff14;border-radius:8px;cursor:pointer}
+.lu-item.on{border-color:#7cf3ff;background:#7cf3ff12}.lu-item i{width:10px;height:10px;border-radius:50%;grid-row:1}
+.lu-item b{font-size:13px;font-weight:600}.lu-item small{grid-column:2;color:#7c8898;font-size:11px}
+.lu-item span{grid-column:1/3;display:flex;gap:5px;margin-top:3px}.lu-item span button{height:24px;padding:0 9px;border:1px solid #ffffff22;border-radius:5px;background:#ffffff10;color:#e9edf2;font-size:11px;cursor:pointer}
+.lu-item span button:hover{border-color:#7cf3ff;color:#7cf3ff}
+.lu-prog{height:6px;background:#ffffff14;border-radius:3px;overflow:hidden;margin:14px 0 6px}.lu-prog i{display:block;height:100%;background:#7cf3ff;width:0}
+.lu-go{width:100%;height:40px;margin-top:12px;border:0;border-radius:8px;background:#7cf3ff;color:#06222a;font-weight:700;cursor:pointer}
+.lu-note{color:#6b7686;font-size:12px;line-height:1.4}
+.lu-tab .lu-box{max-width:620px}
+#luAim{position:fixed;z-index:30;pointer-events:none;display:none;transform:translate(-50%,-50%)}
+#luAim i{display:block;width:26px;height:26px;border:2px solid #7cf3ff;border-radius:50%;box-shadow:0 0 10px #7cf3ff,inset 0 0 6px #7cf3ff66}
+#luAim span{position:absolute;left:50%;top:30px;transform:translateX(-50%);white-space:nowrap;font:700 11px Rajdhani,Arial;letter-spacing:1px;color:#7cf3ff;text-shadow:0 0 4px #000}
+#luHud{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);z-index:30;pointer-events:none;display:none;background:#0b0e13cc;border:1px solid #7cf3ff55;border-radius:8px;padding:6px 14px;font-size:13px;text-align:center;color:#e9edf2}
+#luHud b{color:#7cf3ff}
+
+.lu-box .lu-seg button.on{background:#7cf3ff22!important;border-color:#7cf3ff!important;color:#7cf3ff!important}
