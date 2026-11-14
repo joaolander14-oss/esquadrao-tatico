@@ -2,7 +2,7 @@
 // (rotas, defesas, bombsites) e conferidos com a mesma física da granada do jogo. Também move o jogador (cheat offline) e roda o
 // modo "Treino de utilitários" (1v0: só você, granadas infinitas, a rodada nunca acaba).
 (function () {
-  const L = G.Lineups = { lists: {}, sel: null, team: 'T', util: 'all', site: 'all', showMarkers: true, showPath: true, autoAim: false, open: false, busy: false, progress: 0, mapId: null };
+  const L = G.Lineups = { lists: {}, sel: null, team: 'T', util: 'all', site: 'all', showMarkers: true, showAll: true, showTags: true, showAllPaths: true, showPath: true, autoAim: false, open: false, busy: false, progress: 0, mapId: null };
   const U = G.U, $ = id => document.getElementById(id);
   const Gm = () => G.Game, Mp = () => G.Map;
   const D2R = U.D2R, GRAV = 20.3 * 0.4 * 2, EYE = 1.64;
@@ -134,6 +134,7 @@
     return L.lists[key];
   };
   const cur = () => (L.lists[(Mp() && Mp().current) + '|' + L.team] || []);
+  const pool = () => L.showAll ? cur() : filtered();
   const filtered = () => cur().filter(c => (L.util === 'all' || c.util === L.util) && (L.site === 'all' || c.target.site === L.site));
 
   // ---------------- ações ----------------
@@ -165,7 +166,7 @@
   function buildMarkers() {
     clearMarkers(); if (!sceneOK() || !L.showMarkers) return;
     group = new THREE.Group(); const seen = new Set();
-    for (const c of filtered()) {
+    for (const c of pool()) {
       const k = c.stand.x.toFixed(1) + ',' + c.stand.z.toFixed(1); if (seen.has(k)) continue; seen.add(k);
       const col = UTIL[c.util][1];
       const ring = new THREE.Mesh(new THREE.RingGeometry(0.35, 0.55, 24), new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide, transparent: true, opacity: 0.9, depthWrite: false }));
@@ -173,7 +174,7 @@
       const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.4, 6), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.45, depthWrite: false }));
       beam.position.set(c.stand.x, c.stand.y + 1.2, c.stand.z); group.add(beam);
     }
-    Gm().scene.add(group); builtFor = Mp().current + '|' + L.team + '|' + L.util + '|' + L.site;
+    Gm().scene.add(group); builtFor = Mp().current + '|' + L.team + '|' + L.util + '|' + L.site + '|' + L.showAll;
     buildPath();
   }
   function buildPath() {
@@ -185,24 +186,80 @@
     landObj = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 8), new THREE.MeshBasicMaterial({ color: UTIL[c.util][1], transparent: true, opacity: 0.8, depthTest: false })); landObj.position.copy(c.land); landObj.renderOrder = 9; group.add(landObj);
     const sel = new THREE.Mesh(new THREE.RingGeometry(0.6, 0.78, 24), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, depthTest: false })); sel.rotation.x = -Math.PI / 2; sel.position.set(c.stand.x, c.stand.y + 0.08, c.stand.z); sel.renderOrder = 10; group.add(sel);
   }
-  let aimEl = null, hudEl = null;
-  function hideAim() { if (aimEl) aimEl.style.display = 'none'; if (hudEl) hudEl.style.display = 'none'; }
+  let hudEl = null, nearGroup = null, nearKey = null;
+  const tagPool = [], retPool = [];
+  const mkEl = (cls) => { const d = document.createElement('div'); d.className = cls; document.body.appendChild(d); return d; };
+  const HEX = u => '#' + UTIL[u][1].toString(16).padStart(6, '0');
+  const STR_SHORT = { 1: 'esq', 0.7: 'esq+dir', 0.42: 'dir' };
+  function hideAll(fromT, fromR) { for (let i = fromT || 0; i < tagPool.length; i++) tagPool[i].style.display = 'none'; for (let i = fromR || 0; i < retPool.length; i++) retPool[i].style.display = 'none'; }
+  function hideAim() { hideAll(0, 0); if (hudEl) hudEl.style.display = 'none'; if (nearGroup && nearGroup.parent) nearGroup.parent.remove(nearGroup); nearGroup = null; nearKey = null; }
   const tv = new THREE.Vector3();
+  function standsOf(list) { const m = new Map(); for (const c of list) { const k = c.stand.x.toFixed(1) + ',' + c.stand.z.toFixed(1); if (!m.has(k)) m.set(k, { key: k, stand: c.stand, items: [] }); m.get(k).items.push(c); } return [...m.values()]; }
   L.frame = (cam) => {
     const gm = Gm(), h = gm.human; if (!h || gm.phase === 'menu' || !Mp()) { hideAim(); return; }
-    const key = Mp().current + '|' + L.team + '|' + L.util + '|' + L.site;
+    const key = Mp().current + '|' + L.team + '|' + L.util + '|' + L.site + '|' + L.showAll;
     if (L.showMarkers && (builtFor !== key || !group) && cur().length) buildMarkers();
     if (!L.showMarkers && group) clearMarkers();
-    if (!aimEl) { aimEl = document.createElement('div'); aimEl.id = 'luAim'; aimEl.innerHTML = '<i></i><span>mire aqui</span>'; document.body.appendChild(aimEl); hudEl = document.createElement('div'); hudEl.id = 'luHud'; document.body.appendChild(hudEl); }
-    const c = L.sel; if (!c || (gm.settings.mode !== 'util' && !L.showMarkers && !L.open)) { hideAim(); return; }
-    const dist = Math.hypot(h.pos.x - c.stand.x, h.pos.z - c.stand.z), st = STRENGTH.find(x => x[0] === c.strength)[1];
-    hudEl.style.display = 'block';
-    hudEl.innerHTML = `<b>${c.name}</b><br>${dist > 1.3 ? `Vá até o círculo branco (${dist.toFixed(0)} m)` : 'Posição certa. Mire na marca e lance com o ' + st}`;
-    if (dist < 4) {
-      const eye = h.eye(tv), dir = U.dirFrom(c.yaw, c.pitch, new THREE.Vector3()), P = eye.clone().addScaledVector(dir, 50).project(cam);
-      if (P.z < 1) { aimEl.style.display = 'block'; aimEl.style.left = ((P.x * 0.5 + 0.5) * window.innerWidth) + 'px'; aimEl.style.top = ((-P.y * 0.5 + 0.5) * window.innerHeight) + 'px'; } else aimEl.style.display = 'none';
-      if (L.autoAim && dist < 1.3) { const dy = U.angDiff(h.yaw, c.yaw), dp = c.pitch - h.pitch; h.yaw += dy * 0.25; h.pitch += dp * 0.25; }
-    } else aimEl.style.display = 'none';
+    if (!hudEl) hudEl = mkEl('luHudEl'), hudEl.id = 'luHud';
+    const active = gm.settings.mode === 'util' || L.showMarkers || L.open;
+    if (!active || !cur().length) { hideAim(); return; }
+    const W = window.innerWidth, Hh = window.innerHeight;
+    const stands = standsOf(pool()).map(s => ({ s, d: Math.hypot(h.pos.x - s.stand.x, h.pos.z - s.stand.z), dy: Math.abs(h.pos.y - s.stand.y) })).sort((a, b) => a.d - b.d);
+    // rótulos dos locais (com a quantidade de utilitários de cada tipo e a distância)
+    let ti = 0;
+    if (L.showTags) for (const o of stands) {
+      if (ti >= 26 || o.d > 90) break; if (o.d < 2.2 && o.dy < 2) continue;
+      const P = tv.set(o.s.stand.x, o.s.stand.y + 2.8, o.s.stand.z).project(cam); if (P.z >= 1 || Math.abs(P.x) > 1.05 || Math.abs(P.y) > 1.05) continue;
+      const el = tagPool[ti] || (tagPool[ti] = mkEl('luTag')); ti++;
+      const cnt = {}; o.s.items.forEach(c => cnt[c.util] = (cnt[c.util] || 0) + 1);
+      el.innerHTML = Object.keys(cnt).map(u => `<em style="background:${HEX(u)}">${utilName(u, L.team)[0]}${cnt[u] > 1 ? cnt[u] : ''}</em>`).join('') + `<small>${o.d.toFixed(0)} m</small>`;
+      el.style.display = 'flex'; el.style.left = ((P.x * 0.5 + 0.5) * W) + 'px'; el.style.top = ((-P.y * 0.5 + 0.5) * Hh) + 'px';
+    }
+    // no local: TODAS as miras daquele ponto aparecem de uma vez (cada uma com sua cor, nome e força)
+    const near = stands.find(o => o.d < 2.0 && o.dy < 2.0);
+    let ri = 0;
+    if (near) {
+      const eye = h.eye(tv), items = near.s.items.slice();
+      const qi = cam.quaternion.clone().invert();
+      const proj = items.map(c => {
+        const dir = U.dirFrom(c.yaw, c.pitch, new THREE.Vector3()), P = eye.clone().addScaledVector(dir, 50).project(cam), cd = dir.clone().applyQuaternion(qi);
+        const inView = cd.z < 0 && P.z < 1 && Math.abs(P.x) < 0.96 && Math.abs(P.y) < 0.94;
+        return { c, P, cd, inView };
+      }).sort((a, b) => (b.inView - a.inView) || (a.cd.x - b.cd.x));
+      proj.forEach((o, i) => {
+        const el = retPool[ri] || (retPool[ri] = mkEl('luRet')); ri++;
+        const col = HEX(o.c.util), sel = o.c === L.sel;
+        let x, y, arrow = '';
+        if (o.inView) { x = (o.P.x * 0.5 + 0.5) * W; y = (-o.P.y * 0.5 + 0.5) * Hh; }
+        else {      // fora da tela (inclusive atrás de você): seta na borda indicando para onde virar
+          let nx = o.cd.z < 0 ? o.P.x : o.cd.x, ny = o.cd.z < 0 ? o.P.y : o.cd.y; const m = Math.hypot(nx, ny) || 1; nx /= m; ny /= m;
+          x = W / 2 + nx * W * 0.4; y = Hh / 2 - ny * Hh * 0.38; arrow = `<b style="color:${col};transform:rotate(${Math.atan2(-ny, nx)}rad)">➤</b>`;
+        }
+        el.className = 'luRet' + (sel ? ' sel' : '') + (o.inView ? '' : ' edge');
+        el.innerHTML = (o.inView ? `<i style="border-color:${col};box-shadow:0 0 10px ${col}"></i>` : arrow) + `<span style="color:${col};top:${o.inView ? 30 + (i % 3) * 14 : 18}px">${esc(o.c.name)} · ${STR_SHORT[o.c.strength]}</span>`;
+        el.style.display = 'block'; el.style.left = x + 'px'; el.style.top = y + 'px';
+      });
+      // trajetórias de todos os utilitários deste local
+      if (L.showAllPaths && group) {
+        if (nearKey !== near.s.key + L.showAll) {
+          if (nearGroup && nearGroup.parent) nearGroup.parent.remove(nearGroup); nearGroup = new THREE.Group(); nearKey = near.s.key + L.showAll;
+          for (const c of items) {
+            const r = simulate(new THREE.Vector3(c.stand.x, c.stand.y + EYE, c.stand.z), c.yaw, c.pitch, c.strength, true), col = UTIL[c.util][1];
+            const ln = new THREE.Line(new THREE.BufferGeometry().setFromPoints(r.path), new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: 0.85, depthTest: false })); ln.renderOrder = 9; nearGroup.add(ln);
+            const lb = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.8, depthTest: false })); lb.position.copy(c.land); lb.renderOrder = 9; nearGroup.add(lb);
+          }
+          Gm().scene.add(nearGroup);
+        }
+      }
+    }
+    if (!near || !L.showAllPaths) { if (nearGroup && nearGroup.parent) nearGroup.parent.remove(nearGroup); nearGroup = null; nearKey = null; }
+    hideAll(ti, ri);
+    // texto de ajuda
+    const c = L.sel;
+    if (near) { hudEl.style.display = 'block'; hudEl.innerHTML = `<b>Neste local: ${near.s.items.length} utilitário(s)</b><br>Mire em um dos círculos coloridos e lance com a força indicada`; }
+    else if (c) { const dist = Math.hypot(h.pos.x - c.stand.x, h.pos.z - c.stand.z); hudEl.style.display = 'block'; hudEl.innerHTML = `<b>${esc(c.name)}</b><br>Vá até o círculo branco (${dist.toFixed(0)} m)`; }
+    else hudEl.style.display = 'none';
+    if (c && L.autoAim) { const dist = Math.hypot(h.pos.x - c.stand.x, h.pos.z - c.stand.z); if (dist < 1.3) { h.yaw += U.angDiff(h.yaw, c.yaw) * 0.25; h.pitch += (c.pitch - h.pitch) * 0.25; } }
   };
 
   // ---------------- interface (painel avulso e aba do painel Invicto) ----------------
@@ -216,6 +273,7 @@
       <div class="lu-row"><span>Utilitário</span><div class="lu-seg">${sw('util', [['all', 'Todos'], ['smoke', 'Fumaça'], ['flash', 'Flash'], ['he', 'HE'], ['fire', tm === 'CT' ? 'Incendiária' : 'Coquetel']])}</div></div>
       <div class="lu-row"><span>Bombsite</span><div class="lu-seg">${sw('site', [['all', 'Todos'], ['A', 'A'], ['B', 'B']])}</div></div>
       <div class="lu-row lu-opts"><label><input type="checkbox" id="luMk" ${L.showMarkers ? 'checked' : ''}> Marcadores no mapa</label><label><input type="checkbox" id="luPth" ${L.showPath ? 'checked' : ''}> Trajetória</label><label><input type="checkbox" id="luAA" ${L.autoAim ? 'checked' : ''}> Mira automática</label></div>
+      <div class="lu-row lu-opts"><label><input type="checkbox" id="luAll" ${L.showAll ? 'checked' : ''}> Mostrar todos os locais (ignora filtros)</label><label><input type="checkbox" id="luTag" ${L.showTags ? 'checked' : ''}> Rótulos dos locais</label><label><input type="checkbox" id="luAP" ${L.showAllPaths ? 'checked' : ''}> Trajetórias de todas as miras do local</label></div>
       ${L.busy ? `<div class="lu-prog"><i style="width:${Math.round(L.progress * 100)}%"></i></div><p class="lu-note">Calculando os lineups deste mapa…</p>` :
         !hasList ? `<button class="lu-go" id="luCalc">Calcular lineups deste mapa</button>` :
         `<div class="lu-list">${list.map(c => `<div class="lu-item ${L.sel === c ? 'on' : ''}" data-i="${c.id}"><i style="background:#${UTIL[c.util][1].toString(16).padStart(6, '0')}"></i><b>${esc(c.name)}</b><small>${STRENGTH.find(x => x[0] === c.strength)[1]}</small>
@@ -229,6 +287,9 @@
     const mk = root.querySelector('#luMk'); if (mk) mk.onchange = () => { L.showMarkers = mk.checked; if (!mk.checked) clearMarkers(); else buildMarkers(); };
     const ph = root.querySelector('#luPth'); if (ph) ph.onchange = () => { L.showPath = ph.checked; buildPath(); };
     const aa = root.querySelector('#luAA'); if (aa) aa.onchange = () => { L.autoAim = aa.checked; };
+    const al = root.querySelector('#luAll'); if (al) al.onchange = () => { L.showAll = al.checked; clearMarkers(); };
+    const tg = root.querySelector('#luTag'); if (tg) tg.onchange = () => { L.showTags = tg.checked; };
+    const ap = root.querySelector('#luAP'); if (ap) ap.onchange = () => { L.showAllPaths = ap.checked; };
     const calc = root.querySelector('#luCalc'); if (calc) calc.onclick = () => L.compute(L.team);
     root.querySelectorAll('.lu-item button').forEach(b => b.onclick = (e) => { e.stopPropagation(); const c = cur().find(x => x.id === +b.dataset.i); if (!c) return; if (b.dataset.a === 'sel') L.select(c); else if (b.dataset.a === 'go') { L.goto(c); L.toggle(false); } else { L.throwNow(c); } });
   }

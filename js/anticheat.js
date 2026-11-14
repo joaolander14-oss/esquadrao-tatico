@@ -227,7 +227,7 @@
 
   // ---------------- Amostragem por passo ----------------
   AC.tick = (dt) => {
-    const g = Gm(); if (!g.agents || g.phase === 'menu' || g.phase === 'over' || banned || g.clientMode) return;
+    const g = Gm(); if (!g.agents || g.phase === 'menu' || g.phase === 'over' || banned || g.clientMode || (g.settings && g.settings.mode === 'util')) return;
     const now = g.time, M = G.Map;
     for (const a of g.agents) {
       const s = S(a);

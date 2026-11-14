@@ -332,3 +332,13 @@ body.touch #buymenu,body.touch #scoreboard,body.touch .menuBox{max-height:100vh;
 #luHud b{color:#7cf3ff}
 
 .lu-box .lu-seg button.on{background:#7cf3ff22!important;border-color:#7cf3ff!important;color:#7cf3ff!important}
+
+.luRet{position:fixed;z-index:30;pointer-events:none;display:none;transform:translate(-50%,-50%)}
+.luRet i{display:block;width:24px;height:24px;border:2px solid #7cf3ff;border-radius:50%}
+.luRet.sel i{width:32px;height:32px;border-width:3px}
+.luRet span{position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap;font:700 11px Rajdhani,Arial;letter-spacing:.5px;text-shadow:0 0 4px #000,0 0 2px #000;background:#0b0e1099;padding:0 5px;border-radius:3px}
+.luTag{position:fixed;z-index:29;pointer-events:none;display:none;transform:translate(-50%,-100%);gap:3px;align-items:center;background:#0b0e13b0;border:1px solid #ffffff30;border-radius:10px;padding:1px 6px}
+.luTag em{font:700 10px Rajdhani,Arial;font-style:normal;color:#10151a;border-radius:6px;padding:0 5px}
+.luTag small{font:600 10px Rajdhani,Arial;color:#cfd6e0;margin-left:3px}
+
+.luRet.edge{opacity:.9}.luRet b{display:block;font-size:22px;line-height:22px;text-shadow:0 0 6px #000}
