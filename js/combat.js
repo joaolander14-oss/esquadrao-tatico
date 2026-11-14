@@ -435,6 +435,24 @@
     const sm = G.Smoke.deploy(n.pos, n.owner);
     for (const f of C.fires) if (f.pos.distanceTo(sm.pos) < sm.r) f.t = f.life;
   }
+  // chamas com gradiente próprio: coquetel = branco embaixo até o vermelho nas partes externas;
+  // incendiária = branco embaixo, vermelho até o meio e azul nas pontas (partes mais externas)
+  const flameCache = {};
+  function flameTex(kind, ring) {
+    const key = kind + ring; if (flameCache[key]) return flameCache[key];
+    const w = 64, h = 96, cv = document.createElement('canvas'); cv.width = w; cv.height = h; const g = cv.getContext('2d');
+    const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t)), css = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+    const WH = [255, 255, 255], YE = [255, 205, 90], OR = [255, 120, 30], RD = [205, 30, 20], BL = [60, 120, 255], DB = [30, 70, 230];
+    const o = ring / 2;            // 0 = centro da poça, 1 = borda
+    let stops;
+    if (kind === 'molotov') stops = [[0, css(RD, 0.0)], [0.14, css(mix(RD, [150, 15, 10], 0.4), 0.85)], [0.45, css(mix(OR, RD, 0.35 + o * 0.6), 0.9)], [0.7, css(mix(YE, RD, 0.2 + o * 0.7), 0.92)], [0.86, css(mix(WH, YE, 0.2 + o * 0.7), 0.95)], [1, css(mix(WH, RD, o * 0.5), 1)]];
+    else stops = [[0, css(DB, 0.0)], [0.1, css(mix(BL, DB, 0.4), 0.9)], [0.3, css(mix(BL, RD, 0.55 - o * 0.45), 0.9)], [0.5, css(RD, 0.92)], [0.74, css(mix(OR, RD, 0.3 + o * 0.4), 0.92)], [0.88, css(mix(WH, OR, 0.15 + o * 0.5), 0.95)], [1, css(mix(WH, RD, o * 0.4), 1)]];
+    const gr = g.createLinearGradient(0, 0, 0, h); stops.forEach(([p, c]) => gr.addColorStop(p, c));
+    g.fillStyle = gr; g.beginPath(); g.moveTo(w / 2, 2); g.bezierCurveTo(w * 0.9, h * 0.3, w * 0.98, h * 0.7, w * 0.9, h * 0.9); g.quadraticCurveTo(w / 2, h * 1.03, w * 0.1, h * 0.9); g.bezierCurveTo(w * 0.02, h * 0.7, w * 0.1, h * 0.3, w / 2, 2); g.fill();
+    // bordas suaves
+    g.globalCompositeOperation = 'destination-in'; const rg = g.createRadialGradient(w / 2, h * 0.62, 4, w / 2, h * 0.62, w * 0.62); rg.addColorStop(0, 'rgba(0,0,0,1)'); rg.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = rg; g.fillRect(0, 0, w, h);
+    const t = new THREE.CanvasTexture(cv); return (flameCache[key] = t);
+  }
   function igniteAt(n) {
     finish(n);
     const g = M.groundAt(n.pos.x, n.pos.z);
@@ -444,16 +462,16 @@
     }
     if (G.Smoke.densityAt(tmp.set(pos.x, pos.y + 0.5, pos.z)) > 0.3) { G.Audio.smoke(pos); return; }
     G.Audio.fire(pos);
-    const group = new THREE.Group();
-    for (let i = 0; i < 18; i++) {
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: C.fireTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+    const group = new THREE.Group(), kind = n.id === 'incend' ? 'incend' : 'molotov';
+    for (let i = 0; i < 22; i++) {
       const a = Math.random() * Math.PI * 2, rad = Math.sqrt(Math.random()) * 2.8;
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: flameTex(kind, rad < 0.95 ? 0 : rad < 1.9 ? 1 : 2), transparent: true, opacity: 0.92, depthWrite: false }));
       sp.position.set(pos.x + Math.cos(a) * rad, pos.y + 0.4, pos.z + Math.sin(a) * rad);
       sp.userData.s = 0.9 + Math.random() * 0.9;
       group.add(sp);
     }
     scene.add(group);
-    C.fires.push({ pos, r: 3.0, t: 0, life: 7, tick: 0, group, owner: n.owner, name: n.def.name });
+    C.fires.push({ pos, r: 3.0, t: 0, life: 12, tick: 0, group, owner: n.owner, name: n.def.name });
     if (G.Bots) G.Bots.onFire(pos);
   }
   // segmento bloqueado por fumaça?

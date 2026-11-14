@@ -4,7 +4,7 @@
   const Sm = G.Smoke = {};
   const U = G.U;
   const M = () => G.Map;
-  const V = 0.75, MAXV = 1000, MAXD = 18, LIFE = 20;
+  const V = 0.75, MAXV = 1000, MAXD = 18, LIFE = 32;
   Sm.list = [];
   let scene = null, puff = null, veil = null;
   const tv = new THREE.Vector3();

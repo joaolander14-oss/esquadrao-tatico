@@ -13,7 +13,7 @@
   const fireId = team => team === 'CT' ? 'incend' : 'molotov';
   const utilName = (u, team) => u === 'fire' ? (team === 'CT' ? 'Incendiária' : 'Coquetel') : UTIL[u][0];
   const STRENGTH = [[1, 'clique esquerdo (força total)'], [0.7, 'esquerdo + direito juntos (força média)'], [0.42, 'clique direito (arremesso curto)']];
-  const ROLE = { defensores: ['segurar os defensores do', ['smoke', 'flash', 'he', 'fire']], centro: ['centro do', ['smoke', 'flash']], plantio: ['plantio do', ['smoke', 'he', 'fire']], entrada: ['entrada do', ['smoke', 'flash', 'he', 'fire']], cachoeira: ['cachoeira sobre a borda do', ['smoke']], atacantes: ['caminho dos atacantes ao', ['smoke', 'flash', 'he', 'fire']], bomba: ['bomba plantada no', ['smoke', 'he', 'fire']] };
+  const ROLE = { defensores: ['segurar os defensores do', ['smoke', 'flash', 'he', 'fire']], centro: ['centro do', ['smoke', 'flash']], plantio: ['plantio do', ['smoke', 'he', 'fire']], entrada: ['entrada do', ['smoke', 'flash', 'he', 'fire']], cachoeira: ['cachoeira sobre a borda do', ['smoke']], meio: ['controle do meio', ['smoke', 'flash', 'he', 'fire']], atacantes: ['caminho dos atacantes ao', ['smoke', 'flash', 'he', 'fire']], bomba: ['bomba plantada no', ['smoke', 'he', 'fire']] };
 
   // ---------------- física da granada (igual à de combat.js: stepNade) ----------------
   function simulate(eye, yaw, aimPitch, strength, record, v0, vy0) {
@@ -59,7 +59,7 @@
   const pt = (p, extra) => Object.assign({ x: p.x, y: gy(p), z: p.z }, extra || {});
   function collect(team) {
     const M = Mp(), sp = M.spots, stands = [], targets = [], spawns = team === 'T' ? sp.tSpawn : sp.ctSpawn;
-    const isBase = p => spawns.some(q => Math.hypot(q.x - p.x, q.z - p.z) < 9);
+    const isBase = p => spawns.some(q => Math.hypot(q.x - p.x, q.z - p.z) < 14);
     const add = (arr, p, tag) => { if (!p) return; const q = pt(p, { tag }); q.base = isBase(q); if (!arr.some(o => Math.hypot(o.x - q.x, o.z - q.z) < 3.5 && Math.abs(o.y - q.y) < 1.5)) arr.push(q); };
     for (const X of ['A', 'B']) {
       for (const r of sp.routes[X] || []) r.forEach(p => add(stands, p, X));
@@ -86,6 +86,14 @@
       pickL.forEach(q => targets.push({ x: q.x, y: q.y, z: q.z, role: 'cachoeira', site: X }));
     }
     spawns.forEach(p => add(stands, p, 'A')); (sp.holdMid || []).forEach(p => add(stands, p, 'A')); (sp.lurk || []).forEach(p => add(stands, p, 'A'));
+    // controle do meio (a partir da base e de qualquer lugar): meio do mapa e o começo/meio de cada rota
+    (sp.holdMid || []).forEach(p => targets.push(pt(p, { role: 'meio', site: 'M' })));
+    for (const X of ['A', 'B']) for (const r of sp.routes[X] || []) { if (r.length > 3) { targets.push(pt(r[1], { role: 'meio', site: 'M' })); targets.push(pt(r[Math.floor(r.length / 2)], { role: 'meio', site: 'M' })); } }
+    // pontos perto dos spawns (arremessos "da base")
+    const baseCells = [];
+    for (const p of spawns) { let n = 0; for (let tries = 0; tries < 60 && n < 7; tries++) { const a = G.U.hash2(tries * 13 + 1, Math.floor(p.x) + 7) * 6.283, r = 2 + G.U.hash2(tries * 5 + 3, Math.floor(p.z) + 11) * 12, qx = p.x + Math.cos(a) * r, qz = p.z + Math.sin(a) * r, qk = M.cellIndex(qx, qz);
+      if (qk < 0 || M.isWall[qk] || M.navBlocked[qk] || M.ramp[qk] || M.water[qk] || M.cb[qk] < 900 || Math.abs(M.floor[qk] - gy(p)) > 0.6) continue; n++; baseCells.push({ x: qx, y: M.floor[qk], z: qz, base: true }); } }
+    baseCells.forEach(q => { if (!stands.some(o => Math.hypot(o.x - q.x, o.z - q.z) < 3)) stands.push(q); });
     const ts = []; for (const t of targets) if (!ts.some(o => o.role === t.role && o.site === t.site && Math.hypot(o.x - t.x, o.z - t.z) < 2.5 && Math.abs(o.y - t.y) < 1.5)) ts.push(t);
     // candidatos para lançar correndo: células livres e abertas a 24–44 m de cada alvo, mais as posições das bases
     const far = new Map();
@@ -104,7 +112,8 @@
           if (qk >= 0 && !M.isWall[qk] && !M.navBlocked[qk] && M.cb[qk] > 900 && Math.abs(M.floor[qk] - gy(p)) < 0.6) pick.push({ x: qx, y: M.floor[qk], z: qz, runBase: true });
         }
       }
-      pick.forEach(q => { q.base = q.runBase || isBase(q); });
+      baseCells.forEach(q => pick.push(q));
+      pick.forEach(q => { q.base = q.runBase || q.base || isBase(q); });
       far.set(T, pick);
     }
     return { stands, targets: ts, far };
@@ -183,16 +192,16 @@
     const out = [];
     for (const k in groups) {
       groups[k].sort((a, b) => a.sc - b.sc); const pick = [];
-      for (const c of groups[k]) { if (pick.length >= 2) break; if (pick.every(p => Math.hypot(p.stand.x - c.stand.x, p.stand.z - c.stand.z) > 6)) pick.push(c); }
+      for (const c of groups[k]) { if (pick.length >= (c.fromBase ? 3 : 2)) break; if (pick.every(p => Math.hypot(p.stand.x - c.stand.x, p.stand.z - c.stand.z) > 6)) pick.push(c); }
       out.push(...pick);
     }
     out.sort((a, b) => (a.target.site > b.target.site) - (a.target.site < b.target.site) || a.util.localeCompare(b.util) || a.sc - b.sc);
     out.forEach((c, i) => {
       c.id = i; c.team = team;
-      const base = c.target.role === 'cachoeira' ? 'Fumaça cachoeira · ' + ROLE.cachoeira[0] + ' ' + c.target.site : utilName(c.util, team) + ' · ' + ROLE[c.target.role][0] + ' ' + c.target.site;
+      const base = c.target.role === 'cachoeira' ? 'Fumaça cachoeira · ' + ROLE.cachoeira[0] + ' ' + c.target.site : c.target.role === 'meio' ? utilName(c.util, team) + ' · ' + ROLE.meio[0] : utilName(c.util, team) + ' · ' + ROLE[c.target.role][0] + ' ' + c.target.site;
       c.name = (c.fromBase ? 'Da base · ' : '') + (c.mode !== 'parado' ? TECH[c.mode] + ' · ' : c.range === 'longo' ? 'Longo · ' : '') + base;
     });
-    L.lists[key] = out.slice(0, 300); L.busy = false; L.progress = 1;
+    L.lists[key] = out.slice(0, 380); L.busy = false; L.progress = 1;
     if (L.sel && L.sel.team === team && Mp().current !== mid) L.sel = null;
     buildMarkers(); render();
     return L.lists[key];
@@ -346,7 +355,7 @@
       <div class="lu-row"><span>Utilitário</span><div class="lu-seg">${sw('util', [['all', 'Todos'], ['smoke', 'Fumaça'], ['cach', 'Cachoeira'], ['flash', 'Flash'], ['he', 'HE'], ['fire', tm === 'CT' ? 'Incendiária' : 'Coquetel']])}</div></div>
       <div class="lu-row"><span>Técnica</span><div class="lu-seg">${sw('tech', [['all', 'Todas'], ['parado', 'Parado'], ['pulo', 'Jump throw'], ['corrida', 'W throw'], ['corridapulo', 'W + jump']])}</div></div>
       <div class="lu-row"><span>Alcance</span><div class="lu-seg">${sw('range', [['all', 'Todos'], ['curto', 'Curtos'], ['longo', 'Longos'], ['base', 'Da base']])}</div></div>
-      <div class="lu-row"><span>Bombsite</span><div class="lu-seg">${sw('site', [['all', 'Todos'], ['A', 'A'], ['B', 'B']])}</div></div>
+      <div class="lu-row"><span>Bombsite</span><div class="lu-seg">${sw('site', [['all', 'Todos'], ['A', 'A'], ['B', 'B'], ['M', 'Meio']])}</div></div>
       <div class="lu-row lu-opts"><label><input type="checkbox" id="luMk" ${L.showMarkers ? 'checked' : ''}> Marcadores no mapa</label><label><input type="checkbox" id="luPth" ${L.showPath ? 'checked' : ''}> Trajetória</label><label><input type="checkbox" id="luAA" ${L.autoAim ? 'checked' : ''}> Mira automática</label></div>
       <div class="lu-row lu-opts"><label><input type="checkbox" id="luAll" ${L.showAll ? 'checked' : ''}> Mostrar todos os locais (ignora filtros)</label><label><input type="checkbox" id="luTag" ${L.showTags ? 'checked' : ''}> Rótulos dos locais</label><label><input type="checkbox" id="luAP" ${L.showAllPaths ? 'checked' : ''}> Trajetórias de todas as miras do local</label></div>
       ${L.busy ? `<div class="lu-prog"><i style="width:${Math.round(L.progress * 100)}%"></i></div><p class="lu-note">Calculando os lineups deste mapa…</p>` :
