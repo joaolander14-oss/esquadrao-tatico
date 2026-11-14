@@ -12,6 +12,8 @@ Mapas, agentes, armas, facas e acabamentos são **originais**. O jogo é inspira
 ## O que tem
 
 - **Mapas:** 14 mapas, cada um com construções do tema (Usina Nuclear com o reator numa piscina letal, Ruínas Esquecidas, Galerias do Esgoto, Vila das Pontes, ferrovia, fundição com metal fundido, porto com guindaste…), escadas, telhados, casas e fábricas onde dá para entrar, janelas de vidro que quebram ou abrem (fazendo barulho), escadas de mão, portas que estilhaçam a tiro ou explodem com granada, móveis, máquinas e a Usina Nuclear (reator, torres de refrigeração e sala de bombas).
+- **Ruínas Esquecidas:** pirâmide asteca de 3 patamares no centro, com escadarias largas a oeste e leste e um templo de pedra no topo, morros e uma selva de árvores e arbustos.
+- **Galerias do Esgoto (reformado):** a rua (térreo) tem o bombsite A num convés sobre a cisterna; o B fica embaixo dele (escada de mão no vão do convés). Três andares de subsolo (-1, -2 e -3) ligados por rampas e escadas de mão, bueiros abertos até a rua, o rio do esgoto no -1 que cai para o -2 e termina numa grade.
 - **Lugares altos e passagens:** torres de vigia (escada de mão) e bases de concreto (degraus) em todos os mapas, dutos/bueiros que dá para atravessar, tubulações enterráveis através das paredes e, na Usina, o bombsite A num convés de aço **sobre** o salão do reator (B), com escada ligando os dois.
 - **Caixas e barris com a cara de cada mapa** (concreto na usina, pedra no templo, contêiner no porto…).
 - **Fumaça:** tiros abrem um túnel largo por ~5 s e a granada HE varre a fumaça por ~10 s; depois ela volta devagar.

@@ -27,6 +27,8 @@
     'e': { f: 0, mat: 'pipe', cb: 3.0, ct: 3.8, pipe: true },                         // tubulação enterrável
     'g': { f: 3.0, mat: 'upper', zone: 'A' },                                        // galeria elevada (bombsite A)
     'Y': { f: 0, mat: 'spawn', zone: 'T', cb: 4.2, ct: 5.0 }, 'Z': { f: 0, mat: 'spawn', zone: 'CT', cb: 4.2, ct: 5.0 },     // spawns cobertos (esgoto)
+    'v3': { f: 0, mat: 'tunnel', cb: 2.9, ct: 9.0 },                                   // túnel a -9 m com teto rente à rua (topo em 0)
+    'W': { f: -1.0, mat: 'canal', water: true, cb: 2.4, ct: 3.2 },                      // canal coberto (esgoto)
     'k': { f: -6, mat: 'pool', deadly: true, water: true, wy: 2.65 }  // piscina letal (líquido a 2,65 m do fundo); altura via fill(...,'k',h)
   };
   M.TYPES = TYPES;
@@ -68,8 +70,19 @@
         rampC[k] = [hAt(X0, Z0), hAt(X1, Z0), hAt(X0, Z1), hAt(X1, Z1)];
       }
     };
-    def.carve(fill, rampFill);
-    if (def.carve2) def.carve2(fill, rampFill);
+    // morro: elevação suave (altura Hh no centro) sobre células de chão; rx/rz em células
+    const hillFill = (ci, cj, rx, rz, Hh, ch) => {
+      const x0 = (ci + 0.5) * S, z0 = (cj + 0.5) * S, Rx = (rx + 0.5) * S, Rz = (rz + 0.5) * S;
+      const hAt = (x, z) => { const t = Math.hypot((x - x0) / Rx, (z - z0) / Rz); if (t >= 1) return 0; const u = 1 - t; return Hh * u * u * (3 - 2 * u); };
+      for (let j = cj - rz - 1; j <= cj + rz + 1; j++) for (let i = ci - rx - 1; i <= ci + rx + 1; i++) {
+        if (!inside(i, j)) continue; const k = j * W + i; if (grid[k] !== '.' && grid[k] !== ',') continue;
+        const X0 = i * S, X1 = X0 + S, Z0 = j * S, Z1 = Z0 + S, cs = [hAt(X0, Z0), hAt(X1, Z0), hAt(X0, Z1), hAt(X1, Z1)];
+        if (Math.max(...cs) < 0.04) continue;
+        grid[k] = ch || '.'; rampC[k] = cs;
+      }
+    };
+    def.carve(fill, rampFill, hillFill);
+    if (def.carve2) def.carve2(fill, rampFill, hillFill);
     const houseDoors = (def.houses === false || def.houses === 0) ? [] : autoHouses(fill, hOv, def.houses || 2);
     autoPipes(fill, hOv);
     floor = M.floor = new Float32Array(W * H);
@@ -127,6 +140,7 @@
         for (const p of props) { if (p.type === 'door' || p.deck) continue; if (p.y2 > dh + 0.5 && p.y1 < dh + 1.8 && x > p.x1 - 0.9 && x < p.x2 + 0.9 && z > p.z1 - 0.9 && z < p.z2 + 0.9) { M.deckBlk[k] = 1; break; } } }
     }
     const P = (i, j, yawDeg, y) => ({ x: c(i), z: c(j), yaw: (yawDeg || 0) * G.U.D2R, y });
+    { let mf = 0; for (let k = 0; k < W * H; k++) if (!isWall[k] && floor[k] < mf) mf = floor[k]; M.minFloor = mf; }
     M.spots = def.spots(P);
     try { autoLadders(); } catch (e) { console.error('escadas', e); }
     if (G.Furn && def.furnish !== false) { try { autoFurnish(makePropApi()); } catch (e) { console.error('mobília', e); } }
@@ -220,7 +234,7 @@
     let n = 0;
     // espalhar peças temáticas em lugares livres (def.scatter = {tipo: quantidade})
     if (def.scatter) {
-      const free = []; for (let j = 3; j < H - 3; j++) for (let i = 3; i < W - 3; i++) { const k = j * W + i, t = TYPES[grid[k]] || {}; if (isWall[k] || ramp[k] || water[k] || t.window || t.low || t.deadly || zone[k] || navBlocked[k]) continue; free.push([i, j]); }
+      const free = []; for (let j = 3; j < H - 3; j++) for (let i = 3; i < W - 3; i++) { const k = j * W + i, t = TYPES[grid[k]] || {}; if (isWall[k] || ramp[k] || water[k] || t.window || t.low || t.deadly || zone[k] || navBlocked[k]) continue; let nr = false; for (let dj = -2; dj <= 2 && !nr; dj++) for (let di = -2; di <= 2; di++) if (grid[(j + dj) * W + i + di] === '/') { nr = true; break; } if (nr) continue; free.push([i, j]); }
       let sd = 0; for (const kind in def.scatter) for (let q = 0; q < def.scatter[kind]; q++) { sd++; for (let tr = 0; tr < 7; tr++) { const f = free[Math.floor(G.U.hash2(sd * 37 + 11 + tr * 101, def.id.length * 13 + q) * free.length)]; if (f) list.push([kind, f[0], f[1], [0, 90, 180, 270][(sd + tr) % 4], { r: 1, n: q, grp: sd }]); } }
     }
     const placedGrp = new Set();
@@ -885,7 +899,7 @@
   };
 
   // ---------------- Navegação (A* na grade) ----------------
-  function canStep(a, b) { const dh = floor[b] - floor[a]; if (dh < -0.9 && M.deckH && !isNaN(M.deckH[b])) return false; return !navBlocked[b] && (dh <= 0.56 || ((ramp[a] || ramp[b]) && dh <= 0.95) || LADDER.has(a * 65536 + b)); }
+  function canStep(a, b) { const dh = floor[b] - floor[a]; if (dh < -0.9 && M.deckH && !isNaN(M.deckH[b])) return false; if (dh < -0.95 && cb[b] < 900 && !(ramp[a] || ramp[b])) return false; return !navBlocked[b] && (dh <= 0.56 || ((ramp[a] || ramp[b]) && dh <= 0.95) || LADDER.has(a * 65536 + b)); }
   const DIRS = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
   M.findPath = (sx, sz, tx, tz, sy, ty) => {
     const N = W * H, deck = M.deckH, dblk = M.deckBlk;

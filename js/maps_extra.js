@@ -139,13 +139,13 @@
     sirocco: { houses: 6 }, nevada: { houses: 6 }, colonial: { houses: 6 }, templo: { houses: 4 }, fortaleza: { houses: 4 }, bairro: { houses: 7 }, pontes: { houses: 6 },
     porto: { houses: 5, factory: true, platforms: [{ x1: 15.6, x2: 66.0, z1: 18.7, z2: 20.3, y: 9.5, th: 0.2, rail: true }] },
     ferro: { houses: 5, factory: true }, fundicao: { houses: 6, factory: true }, neon: { houses: 5, factory: true }, usina: { houses: 0 },
-    ruinas: { houses: 4, scatter: { columnBroken: 9, column: 4, urn: 8, brazier: 4, statue: 3, obelisk: 2, bench: 3, planter: 4, well: 1 } },
+    ruinas: { houses: 4, scatter: { jungleTree: 46, jungleBush: 30, columnBroken: 8, column: 3, urn: 8, brazier: 3, statue: 2, obelisk: 1 } },
     esgoto: { scatter: { barrelRow: 6, valves: 6, pump: 3, tank: 3, gasCyl: 5, bigPipe: 5, panel: 4, cabinet: 3 } }
   };
   EXTRA.pontes = Object.assign(EXTRA.pontes, { scatter: { stall: 6, cart: 5, barrelRow: 5, well: 2, planter: 8, bench: 6, statue: 2, hay: 4, firewood: 4, fountain: 1, urn: 6 } });
   const TOWER = { sirocco: 'stone', porto: 'metal', nevada: 'ice', colonial: 'wood', usina: 'metal', ferro: 'metal', templo: 'stone', fortaleza: 'stone', neon: 'metal', fundicao: 'metal', bairro: 'wood', ruinas: 'ruin', esgoto: 'metal', pontes: 'wood' };
-  for (const id in X) {
-    const def = M.defs[id], ex = X[id]; if (!def) continue;
+  for (const id of new Set([...Object.keys(X), ...Object.keys(EXTRA), ...Object.keys(COVER)])) {
+    const def = M.defs[id], ex = X[id] || {}; if (!def) continue;
     for (const k of ['houses', 'ladderCount', 'glass', 'furnDens', 'furnLib', 'setpieces', 'carve2', 'pipeCount', 'towerCount', 'towerStyle', 'glassColor', 'ladders']) if (ex[k] !== undefined) def[k] = ex[k];
     if (EXTRA[id]) for (const k in EXTRA[id]) def[k] = EXTRA[id][k];
     if (COVER[id]) def.theme = Object.assign({}, def.theme, COVER[id]);

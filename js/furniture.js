@@ -422,6 +422,18 @@
     p.box(mt.glow(0xffe8b0), 0.3, 0.05, 1.0, 0, 2.17, -1.6); p.box(mt.glow(0xffe8b0), 0.3, 0.05, 1.0, 0, 2.17, 1.6);
     p.box(mt.black(), 1.2, 0.3, 0.04, 0, 1.7, -3.02);
   });
+  // árvore grande da selva (tronco 1 m de colisão, copa só visual) e arbusto
+  def('jungleTree', 1.0, 1.0, 9, 4, (p, o) => {
+    const k = (o.n || 0) % 3, g1 = lam('jtg' + k, { color: [0x2f6a2a, 0x3a7a30, 0x285a2a][k] }), g2 = lam('jtg2' + k, { color: [0x3e8a36, 0x4a9a3a, 0x347a32][k] }), bark = lam('jtb', { color: 0x5a4028, map: T('wood') });
+    p.cyl(bark, 0.3, 0.5, 8.2, 0, 4.1, 0, 0, 0, 0, 9);
+    for (let i = 0; i < 4; i++) p.box(bark, 0.3, 1.3, 1.0, Math.cos(i * 1.57) * 0.55, 0.6, Math.sin(i * 1.57) * 0.55, 0, i * 1.57, 0.3);
+    p.sph(g1, 2.6, 0, 8.2, 0, 1.2, 0.7, 1.2); p.sph(g2, 2.0, 1.2, 9.0, 0.6, 1.1, 0.7, 1.1); p.sph(g2, 1.9, -1.1, 8.8, -0.7, 1.1, 0.7, 1.1); p.sph(g1, 1.6, 0.2, 9.8, -0.3, 1, 0.7, 1);
+    p.cyl(bark, 0.07, 0.07, 3.2, 0.9, 6.6, 0.4, 0.5, 0, 0.6, 5);
+  });
+  def('jungleBush', 1.4, 1.4, 1.1, 1, (p, o) => {
+    const g = lam('jbg', { color: 0x3a7a30 }), g2 = lam('jbg2', { color: 0x2c6228 });
+    p.sph(g, 0.7, 0, 0.5, 0, 1.2, 0.8, 1.2); p.sph(g2, 0.5, 0.45, 0.4, 0.2, 1, 0.8, 1); p.sph(g2, 0.45, -0.4, 0.38, -0.25, 1, 0.8, 1);
+  });
   F.make = (kind, o) => {
     o = o || {}; const fn = B[kind]; if (!fn) return new THREE.Group();
     const p = new Part(); fn(p, o); return p.finish();

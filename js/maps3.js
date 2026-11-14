@@ -16,7 +16,7 @@
     },
     furnLib: { inS: ['urn', 'brazier', 'statue:'], inD: ['urn', 'brazier'], outS: ['urn', 'columnBroken'], outD: ['columnBroken', 'urn', 'brazier'] },
     furnDens: 0.09,
-    carve(fill, ramp) {
+    carve(fill, ramp, hill) {
       fill(2, 3, 12, 25, '.'); fill(8, 10, 43, 25, '.');                                   // selva oeste e grande clareira central
       fill(2, 26, 9, 33, 'T'); fill(37, 4, 43, 9, 'C'); fill(10, 28, 13, 31, '.');
       fill(2, 3, 12, 9, '.'); fill(13, 4, 13, 6, '.');                                     // entrada oeste do santuário
@@ -24,9 +24,11 @@
       fill(17, 5, 17, 7, 'k', -5); fill(20, 5, 20, 7, 'k', -5);                             // poços ao lado da passarela central
       fill(24, 3, 24, 9, '#'); fill(24, 5, 36, 6, 't');                                     // túnel leste (CT -> A)
       fill(15, 10, 15, 10, 'j'); fill(18, 10, 18, 10, 'j'); fill(24, 8, 24, 8, 'j');
-      // zigurate: base a 1 m, topo a 2 m, rampas nos quatro lados
-      fill(19, 14, 27, 22, 'u', 1.0); fill(21, 16, 25, 19, 'u', 2.0); ramp(21, 20, 25, 20, 'N', 1, 2);
-      ramp(17, 17, 18, 19, 'E', 0, 1); ramp(28, 17, 29, 19, 'W', 0, 1); ramp(21, 12, 25, 13, 'S', 0, 1); ramp(21, 23, 25, 24, 'N', 0, 1);
+      // pirâmide asteca de 3 patamares (1,5 / 3 / 4,5 m) com escadarias largas dos lados oeste e leste e um templo no topo
+      fill(18, 12, 28, 24, 'u', 1.5); fill(20, 14, 26, 22, 'u', 3.0); fill(22, 16, 24, 20, 'u', 4.5);
+      ramp(16, 17, 17, 19, 'E', 0, 1.5); ramp(18, 17, 19, 19, 'E', 1.5, 3.0); ramp(20, 17, 21, 19, 'E', 3.0, 4.5);
+      ramp(29, 17, 30, 19, 'W', 0, 1.5); ramp(27, 17, 28, 19, 'W', 1.5, 3.0); ramp(25, 17, 26, 19, 'W', 3.0, 4.5);
+
       // muros em ruínas na clareira
       fill(10, 13, 11, 13, '#'); fill(12, 21, 12, 23, '#'); fill(33, 13, 35, 13, '#'); fill(36, 20, 36, 22, '#'); fill(30, 21, 31, 21, '#'); fill(15, 15, 15, 16, '#'); fill(31, 16, 31, 17, '#');
       // praça alagada (B)
@@ -34,11 +36,19 @@
       fill(14, 26, 30, 33, 'b'); fill(14, 29, 30, 29, 'w'); fill(17, 29, 18, 29, '.'); fill(23, 29, 24, 29, '.'); fill(27, 29, 28, 29, '.');
       fill(20, 25, 20, 25, 'j'); fill(26, 25, 26, 25, 'j');
       fill(31, 26, 43, 33, '.');
+      // morros da selva (por último: só sobem sobre chão livre)
+      hill(8, 17, 4, 5, 2.0); hill(38, 17, 4, 4, 2.0); hill(37, 30, 3, 3, 1.6); hill(11, 12, 3, 3, 1.4); hill(40, 24, 3, 3, 1.5); hill(30, 12, 3, 2, 1.2); hill(8, 23, 2, 2, 1.0);
     },
     props(a) {
       const c = a.c;
       a.furn('statue', c(19), c(3), 0); a.furn('brazier', c(15), c(4), 0); a.furn('brazier', c(23), c(4), 0); a.furn('brazier', c(15), c(9), 0); a.furn('brazier', c(23), c(9), 0);
-      a.furn('obelisk', c(23), c(17), 0); a.furn('obelisk', c(21), c(18), 0);
+      // templo no topo da pirâmide (y = 4,5): paredes de pedra com portas a oeste e leste, teto e estátua
+      { const y0 = 4.5, st = { tex: 'stoneWall', color: 0xcfc8b0 };
+        a.prop(c(23), 48.3, 9.2, 3.0, 0.6, 'block', y0, st); a.prop(c(23), 62.7, 9.2, 3.0, 0.6, 'block', y0, st);
+        for (const x of [66.3, 74.7]) { a.prop(x, 51.4, 0.6, 3.0, 5.6, 'block', y0, st); a.prop(x, 59.6, 0.6, 3.0, 5.6, 'block', y0, st); a.prop(x, 55.5, 0.6, 0.5, 2.6, 'block', y0 + 2.5, st); }
+        a.prop(c(23), 55.5, 10.0, 0.5, 16.2, 'block', y0 + 3.0, { tex: 'moss', color: 0xb8c0a0 });
+        a.prop(c(23), 55.5, 7.2, 0.5, 12.6, 'block', y0 + 3.5, st);
+        a.furn('statue', c(23), 55.5, 0, { y: y0 }); a.furn('brazier', 68.2, 50.5, 0, { y: y0 }); a.furn('brazier', 72.8, 60.5, 0, { y: y0 }); a.furn('brazier', 72.8, 50.5, 0, { y: y0 }); a.furn('brazier', 68.2, 60.5, 0, { y: y0 }); }
       for (const [i, j, k] of [[15, 12, 0], [11, 16, 1], [13, 19, 0], [33, 15, 1], [36, 18, 0], [31, 23, 1], [9, 22, 1], [38, 14, 0], [16, 23, 1], [29, 13, 0]]) a.furn(k ? 'columnBroken' : 'column', c(i), c(j), 0);
       for (const [i, j] of [[15, 27], [29, 27], [16, 32], [28, 32], [22, 31], [20, 28], [24, 28]]) a.furn(((i + j) % 3 ? 'column' : 'columnBroken'), c(i), c(j), 0);
       a.furn('statue', c(22), c(26), 0); a.furn('urn', c(17), c(32), 0); a.furn('urn', c(27), c(32), 0); a.furn('urn', c(34), c(18), 0); a.furn('urn', c(8), c(13), 0);
@@ -50,18 +60,19 @@
       A: P(18, 8), B: P(22, 27),
       plantA: [P(18, 8), P(15, 5), P(22, 5), P(19, 4)], plantB: [P(22, 27), P(17, 27), P(27, 27), P(20, 32)],
       routes: {
-        A: [[P(8, 29), P(5, 22), P(4, 14), P(5, 6), P(10, 5), P(14, 5)], [P(10, 25), P(14, 19), P(16, 19), P(22, 12), P(22, 10), P(21, 8)]],
+        A: [[P(8, 29), P(5, 22), P(4, 14), P(5, 6), P(10, 5), P(14, 5)], [P(10, 25), P(14, 22), P(15, 14), P(22, 11), P(22, 10), P(21, 8)]],
         B: [[P(10, 30), P(15, 31), P(20, 31)], [P(10, 28), P(14, 27), P(19, 27), P(22, 27)]]
       },
       holdA: [P(15, 8, 0), P(23, 8, 0), P(21, 4, 90), P(16, 5, 90)], holdB: [P(16, 27, 90), P(28, 27, 90), P(22, 32, 0), P(18, 31, 0)],
-      holdMid: [P(20, 12, 180), P(26, 12, 180)],
+      holdMid: [P(20, 11, 180), P(26, 11, 180)],
       postA: [P(15, 5, 0), P(23, 5, 180), P(19, 4, 0), P(22, 8, 180)], postB: [P(16, 27, 0), P(28, 27, 180), P(20, 32, 0), P(26, 31, 0)],
       lurk: [P(8, 18, 0), P(34, 14, 0), P(30, 30, 0)]
     }),
     decor(d) {
       const c = d.c, S = d.S;
       // pirâmide escalonada ao fundo e árvores gigantes da selva
-      for (let i = 0; i < 4; i++) d.box(26 - i * 6, 3, 14 - i * 3, c(30), 1.5 + i * 3, c(7), 0x8a8a74, 'moss');
+      // faixa decorativa e tochas na escadaria
+      d.glow(c(23), 9.2, c(18), 0xffc060, 1.4, 22);
       for (const [x, z] of [[c(5), c(1)], [c(12), c(1)], [c(30), c(1)], [c(41), c(1)], [c(0) + 1, c(20)], [c(44), c(27)], [c(44), c(14)], [c(20), c(36)], [c(30), c(36)]]) d.tree(x, z, 3.2, false, true);
       d.letter('A', c(18), 0.03, c(8), -Math.PI / 2, 0, 2.4); d.letter('B', c(22), 0.03, c(27), -Math.PI / 2, 0, 2.4);
       d.sign('SANTUÁRIO · NÃO PISE NOS POÇOS', '#6a5a30', '#f0e0b0', null, 14 * S + 0.03, 3.2, c(8), Math.PI / 2, 2.8, 0.7);
@@ -71,63 +82,87 @@
 
   // =====================================================================
   M.register({
-    id: 'esgoto', name: 'Galerias do Esgoto', place: 'Subsolo · rede de esgoto', tag: 'Novo', houses: 0, ladderCount: 3,
-    desc: 'Tudo coberto: canal de esgoto no meio com pontes, câmara das válvulas no A com mezanino, reservatório no B com poço de lodo tóxico (a passarela central é o único caminho seguro sobre ele) e túneis estreitos de tijolo úmido.',
+    id: 'esgoto', name: 'Galerias do Esgoto', place: 'Rua e subsolo · 3 andares de esgoto', tag: 'Reformado', houses: 4, ladderCount: 0, towerCount: 2, pipeCount: 0, ductCount: 0,
+    desc: 'Térreo: rua com prédios e o bombsite A num convés sobre a cisterna. Subsolo -1: salas de partida (Insurgentes a oeste, Força Tática a leste), corredor central com o rio do esgoto, bueiros abertos com escada de mão até a rua. -2: galerias com a queda do rio e a grade onde ele termina. -3: a cisterna do bombsite B, bem embaixo do A (escada de mão no vão do convés).',
     theme: {
-      mats: { wall: 'wetBrick', roof: 'wetBrick', ground: 'concrete', ground2: 'slime', spawn: 'concrete', site: 'steelPlate', stair: 'steelPlate', upper: 'grate', tunnel: 'wetBrick', slab: 'concrete', raise: 'wetBrick', ramp: 'steelPlate', canal: 'slime', pool: 'slime' },
-      sky: ['#1a221a', '#2a3a2a', '#3a4a32'], fog: 0x2a3a22, fogNear: 22, fogFar: 110,
-      hemi: [0xa8c896, 0x3a4a30, 0.95], sun: [0xd8f0b0, 0.4], sunDir: [20, 60, -20],
-      wallH: [6, 1.5, 3], window: 'none', winChance: 0, tintVar: 0.25, door: 'metal', gate: 0x4a5a3a,
+      mats: { wall: 'wetBrick', roof: 'asphalt', ground: 'asphalt', ground2: 'concrete', spawn: 'concrete', site: 'steelPlate', stair: 'steelPlate', upper: 'grate', tunnel: 'wetBrick', slab: 'concrete', raise: 'concrete', ramp: 'concrete', canal: 'slime', pool: 'slime' },
+      sky: ['#10161c', '#26323a', '#44504c'], fog: 0x1c2a2a, fogNear: 30, fogFar: 150,
+      hemi: [0xa8c0b0, 0x3a4a40, 0.95], sun: [0xc8e0d0, 0.5], sunDir: [20, 70, -20],
+      wallH: [6, 1.5, 3], window: 'industrial', winChance: 0.3, tintVar: 0.25, door: 'metal', gate: 0x4a5a3a,
       water: 0x6a8a2a, waterOpacity: 0.85, waterGlow: 0x1a2a08, waterFx: 0xa8c860, deadName: 'Lodo tóxico',
       radar: { ground: [76, 84, 70], site: [110, 120, 80], roof: [50, 58, 46] }
     },
-    furnLib: { inS: ['valves', 'cabinet', 'gasCyl', 'panel', 'valves'], inD: ['bigPipe', 'pump', 'tank', 'barrelRow', 'valves'], outS: [], outD: [] },
-    furnDens: 0.2,
+    furnLib: { inS: ['valves', 'cabinet', 'gasCyl', 'panel', 'valves'], inD: ['bigPipe', 'pump', 'tank', 'barrelRow', 'valves'], outS: ['planter', 'bench', 'barrelRow'], outD: ['vending', 'bench', 'planter', 'barrelRow'] },
+    furnDens: 0.14,
     carve(fill, ramp) {
-      fill(2, 15, 8, 22, 'Y'); fill(37, 15, 43, 22, 'Z');                                   // praças de manutenção (spawns cobertos)
-      fill(9, 15, 36, 16, 'i'); fill(9, 20, 36, 21, 'i'); fill(9, 17, 36, 19, 'w');         // passarelas e o canal de esgoto
-      fill(17, 17, 18, 19, 'i'); fill(27, 17, 28, 19, 'i');                                 // pontes sobre o canal
-      // A: câmara das válvulas
-      fill(14, 3, 26, 11, 'q'); fill(19, 12, 21, 14, 't'); fill(15, 3, 19, 4, 'q', 2.0); ramp(15, 5, 17, 7, 'N', 0, 2, 'q');
-      fill(4, 8, 7, 14, 't'); fill(3, 3, 8, 7, 'i'); fill(9, 5, 13, 7, 't');                // oeste: T -> A
-      fill(38, 8, 41, 14, 't'); fill(37, 3, 42, 7, 'i'); fill(27, 5, 36, 7, 't');           // leste: CT -> A
-      // B: reservatório com poço de lodo tóxico
-      fill(14, 26, 30, 34, 'r'); fill(19, 28, 25, 32, 'k', -4); fill(19, 30, 25, 30, 'r');  // passarela central sobre o poço
-      fill(15, 33, 19, 34, 'r', 2.0); ramp(15, 30, 17, 32, 'S', 0, 2, 'r');
-      fill(21, 22, 23, 25, 't');                                                            // canal -> B
-      fill(4, 23, 7, 29, 't'); fill(3, 30, 10, 35, 'i'); fill(11, 31, 13, 33, 't');         // oeste: T -> B
-      fill(38, 23, 41, 29, 't'); fill(36, 30, 43, 35, 'i'); fill(31, 31, 35, 33, 't');      // leste: CT -> B
-      fill(32, 14, 32, 14, 'h'); fill(13, 22, 13, 22, 'h');
+      // ---- térreo: a rua ----
+      fill(1, 1, 44, 12, '.');
+      for (const b of [[2, 2, 9, 6], [2, 8, 7, 11], [11, 2, 15, 5], [31, 2, 35, 5], [38, 2, 43, 6], [39, 8, 43, 11]]) fill(b[0], b[1], b[2], b[3], '#');
+      // ---- -3: cisterna (B) bem embaixo do convés do A; entrada pelo sul, por baixo da rua ----
+      fill(18, 3, 27, 10, 'b', -9);
+      fill(22, 11, 23, 12, 'v3', -9); fill(22, 13, 23, 19, 't', -9);
+      ramp(21, 20, 24, 23, 'S', -9, -6, 't');
+      // ---- -2: galerias, vale-válvulas e câmara da queda do rio ----
+      fill(13, 24, 24, 26, 't', -6); fill(25, 22, 32, 27, 't', -6); fill(27, 25, 31, 27, 'W', -6.4);
+      fill(13, 25, 13, 25, '.', -6); fill(32, 24, 32, 24, '.', -6); fill(28, 27, 28, 27, 'w', -6.4);      // poços das escadas e a queda do rio (sem teto)
+      ramp(21, 27, 24, 30, 'S', -6, -3, 't');
+      // ---- -1: salas de partida, corredor central com o rio e túneis até os bueiros ----
+      fill(9, 31, 36, 35, 't', -3); fill(2, 31, 8, 35, 'Y', -3); fill(37, 31, 43, 35, 'Z', -3);
+      fill(28, 33, 36, 34, 'W', -3.6); fill(28, 28, 28, 32, 'W', -3.6);
+      fill(9, 13, 9, 30, 't', -3); fill(36, 13, 36, 30, 't', -3);
+      fill(9, 12, 9, 12, '.', -3); fill(36, 12, 36, 12, '.', -3);                 // bueiros abertos (escada de mão até a rua)
+      fill(9, 25, 12, 25, 't', -3); fill(33, 24, 36, 24, 't', -3);                // ramais até as escadas para o -2
+      for (const [pi, pj] of [[13, 32], [18, 34], [26, 32], [32, 32], [16, 31], [30, 35]]) fill(pi, pj, pi, pj, '#');       // pilares: quebram a linha de tiro do corredor
     },
+    deck: {
+      h: 0, zone: 'A', tex: 'steelPlate', color: 0x9aa09c,
+      rects: [[18, 3, 27, 4], [18, 9, 27, 10], [19, 5, 20, 8], [18, 5, 18, 5], [18, 8, 18, 8], [25, 5, 26, 8], [27, 5, 27, 5], [27, 8, 27, 8]]
+    },
+    ladders: [[9, 12, 'N'], [36, 12, 'N'], [18, 6, 'W'], [27, 7, 'E'], [13, 25, 'W'], [32, 24, 'E']],
     props(a) {
-      const c = a.c;
-      a.furn('valves', c(20), c(8), 0); a.furn('valves', c(23), c(8), 0); a.furn('tank', c(25), c(4), 0, { color: 'blue' }); a.furn('bigPump', c(16), c(10), 0, { n: 1 });
-      a.furn('pump', c(17), c(27), 0); a.furn('pump', c(29), c(33), 180); a.furn('tank', c(28), c(27), 0); a.furn('tank', c(16), c(31) - 4, 0);
-      a.crate(c(11), c(16), 1.2, 2); a.barrel(c(33), c(20)); a.crate(c(24), c(15), 1.2); a.crate(c(14), c(21), 1.2);
-      a.door(9, 5, 'W', { kind: 'metal' }); a.door(36, 5, 'E', { kind: 'metal' }); a.door(21, 22, 'N', { kind: 'metal', width: 1 });
-      a.gate(2, 15, 'N', 7); a.gate(2, 22, 'S', 7); a.gate(8, 17, 'E', 3); a.gate(37, 15, 'N', 7); a.gate(37, 22, 'S', 7); a.gate(37, 17, 'W', 3);
+      const c = a.c, dk = 0;
+      // rua
+      a.car(c(14), c(8), true, 0x4a5a6a); a.car(c(30), c(9), false, 0x6a4a3a); a.car(c(21), c(1) + 0.2, true, 0x3a4a3a);
+      a.barrel(c(16), c(11)); a.barrel(c(16) + 0.8, c(11)); a.crate(c(29), c(11), 1.2, 2); a.crate(c(12), c(7) + 0.4, 1.2);
+      // convés do A: caixas e cobertura
+      a.prop(c(19), c(3), 1.2, 1.2, 1.2, 'crate', dk); a.prop(c(19), c(3), 1.2, 1.2, 1.2, 'crate', dk + 1.2); a.prop(c(26), c(10), 1.2, 1.2, 1.2, 'crate', dk);
+      a.prop(c(24), c(4), 2.6, 1.0, 1.0, 'block', dk, { tex: 'concrete', color: 0xb0aaa0 }); a.prop(c(21), c(9), 2.6, 1.0, 1.0, 'block', dk, { tex: 'concrete', color: 0xb0aaa0 });
+      // cisterna (B), -2 e -1
+      a.furn('tank', c(19), c(9), 0, { color: 'blue', y: -9 }); a.furn('pump', c(26), c(9), 180, { y: -9 }); a.crate(c(19), c(4), 1.2, 2); a.barrel(c(26), c(4));
+      a.furn('valves', c(15), c(26), 0); a.furn('pump', c(30), c(23), 0); a.furn('tank', c(18), c(25), 0); a.crate(c(14), c(24), 1.2);
+      a.furn('bigPump', c(14), c(33), 0, { n: 1 }); a.furn('valves', c(31), c(31), 0); a.crate(c(12), c(33), 1.2, 2); a.barrel(c(34), c(31));
+      a.gate(8, 31, 'E', 5); a.gate(37, 31, 'W', 5);
     },
-    spots: P => ({
-      tSpawn: [P(4, 17), P(6, 18), P(4, 20), P(7, 20), P(5, 21)],
-      ctSpawn: [P(39, 17), P(41, 18), P(39, 20), P(42, 20), P(40, 21)],
-      A: P(21, 8), B: P(16, 28),
-      plantA: [P(21, 8), P(24, 5), P(23, 10), P(17, 10)], plantB: [P(16, 28), P(28, 31), P(22, 27), P(22, 33)],
-      routes: {
-        A: [[P(5, 19), P(5, 12), P(5, 6), P(11, 6), P(15, 8)], [P(10, 16), P(18, 16), P(20, 13), P(21, 9)]],
-        B: [[P(5, 22), P(5, 27), P(6, 32), P(12, 32), P(16, 32)], [P(10, 21), P(21, 21), P(22, 24), P(22, 27)]]
-      },
-      holdA: [P(15, 9, 0), P(25, 9, 0), P(21, 4, 90), P(24, 10, 180)], holdB: [P(16, 28, 90), P(28, 30, 90), P(22, 33, 0), P(22, 27, 180)],
-      holdMid: [P(18, 16, 180), P(27, 20, 180)],
-      postA: [P(15, 10, 0), P(25, 6, 180), P(21, 4, 0), P(23, 10, 180)], postB: [P(15, 27, 0), P(29, 28, 180), P(22, 33, 0), P(27, 33, 180)],
-      lurk: [P(10, 21, 0), P(33, 16, 0), P(5, 25, 0)]
-    }),
+    spots: P => {
+      const D = (i, j, yaw) => P(i, j, yaw, 0), H = (i, j, yaw) => P(i, j, yaw, -9);
+      return {
+        tSpawn: [P(3, 32), P(5, 33), P(3, 34), P(6, 34), P(7, 32)],
+        ctSpawn: [P(40, 32), P(42, 33), P(40, 34), P(43, 34), P(38, 33)],
+        A: D(22, 4), B: H(22, 8),
+        plantA: [D(22, 4), D(19, 4), D(26, 4), D(22, 10)], plantB: [H(22, 8), H(19, 5), H(26, 5), H(22, 4)],
+        routes: {
+          A: [[P(7, 33), P(9, 30), P(9, 16), P(9, 12), P(12, 10), P(16, 7), D(19, 4)],
+              [P(8, 33), P(20, 32), P(22, 29), P(22, 25), P(22, 17), H(22, 9), H(18, 6), P(16, 6), D(19, 5)]],
+          B: [[P(8, 33), P(20, 32), P(22, 29), P(22, 25), P(22, 17), H(22, 10), H(22, 8)],
+              [P(7, 33), P(9, 28), P(10, 25), P(15, 25), P(21, 25), P(22, 17), H(22, 10), H(22, 8)]]
+        },
+        holdA: [D(19, 3, 0), D(26, 3, 0), D(22, 10, 180), D(25, 9, 180)], holdB: [H(19, 9, 0), H(26, 9, 0), H(22, 4, 90), H(21, 10, 0)],
+        holdMid: [P(22, 17, 0), P(22, 19, 0)],
+        postA: [D(20, 4, 0), D(25, 4, 0), D(22, 10, 180), D(19, 9, 90)], postB: [H(20, 9, 0), H(25, 9, 0), H(21, 4, 90), H(26, 4, 90)],
+        lurk: [P(15, 25, 0), P(30, 23, 0), P(9, 20, 0)]
+      };
+    },
     decor(d) {
       const c = d.c, S = d.S;
-      d.glow(c(22), 1.0, c(30), 0xa8e040, 1.0, 20); d.glow(c(20), 1.5, c(7), 0xd8e8a0, 0.7, 18);
-      d.pipe(c(9), 15 * S + 0.4, c(36), 15 * S + 0.4, 3.4, 0.28, 0x6a5a40); d.pipe(c(9), 22 * S - 0.4, c(36), 22 * S - 0.4, 3.2, 0.22, 0x3a5a3a);
-      d.sign('CÂMARA DAS VÁLVULAS', '#2a4a3a', '#d8f0c8', null, c(20), 3.6, 3 * S + 0.03, 0, 2.8, 0.7);
-      d.sign('RESERVATÓRIO · LODO TÓXICO · NÃO PISE', '#f0d020', '#111', 'rad', c(22), 3.2, 26 * S + 0.03, 0, 3.0, 0.8);
-      d.letter('A', c(21), 0.03, c(8), -Math.PI / 2, 0, 2.4); d.letter('B', c(16), 0.03, c(28), -Math.PI / 2, 0, 2.4);
+      d.glow(c(22), -6.5, c(7), 0xa8e040, 1.1, 30); d.glow(c(22), 3.2, c(8), 0xfff0d0, 0.9, 30); d.glow(c(22), -4.5, c(25), 0xd8e8a0, 0.8, 20); d.glow(c(15), -1.4, c(33), 0xd8e8a0, 0.8, 20); d.glow(c(30), -1.4, c(33), 0xd8e8a0, 0.8, 20);
+      for (const [x, z] of [[c(5), c(1)], [c(20), c(2)], [c(25), c(12)], [c(40), c(12)], [c(14), c(12)]]) d.lamp(x, z, 5.0, 0xfff0c0);
+      // queda do rio (-1 → -2) e a grade onde ele termina
+      d.box(2.6, 2.8, 0.2, c(28), -4.8, 28 * S - 0.1, 0xb8d870, 'slime');
+      d.box(0.2, 2.6, 6.0, 33 * S - 0.12, -4.9, 81, 0x2a2e30, 'grate'); d.sign('GRADE DE RETENÇÃO', '#f0d020', '#111', null, 33 * S - 0.16, -3.1, 81, -Math.PI / 2, 3.0, 0.7);
+      d.sign('ESTAÇÃO DE TRATAMENTO · CISTERNA', '#e8e4dc', '#1a1a1a', null, c(22), 2.6, 2 * S + 0.03, 0, 3.4, 0.7);
+      d.sign('BUEIRO ABERTO · ESCADA', '#f0d020', '#111', null, c(9) + 0.0, 2.2, 12 * S + 0.03, 0, 2.2, 0.6); d.sign('BUEIRO ABERTO · ESCADA', '#f0d020', '#111', null, c(36), 2.2, 12 * S + 0.03, 0, 2.2, 0.6);
+      d.letter('A', c(22), 0.03, c(4), -Math.PI / 2, 0, 2.6); d.letter('B', c(22), -8.97, c(8), -Math.PI / 2, 0, 2.6);
+      d.pipe(c(9), 34 * S - 0.4, c(36), 34 * S - 0.4, -0.6, 0.28, 0x6a5a40); d.pipe(c(14), 24 * S + 0.4, c(32), 24 * S + 0.4, -3.6, 0.22, 0x3a5a3a);
     }
   });
 

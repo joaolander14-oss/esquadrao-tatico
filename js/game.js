@@ -522,7 +522,7 @@
       if (a.inv.c4) Gm.bombCarrier = a;
       footstep(a, dt);
       // fogo sob o agente (desliza para fora? só dano já tratado)
-      if (a.pos.y < -5) a.applyDamage(999, 1, 'generic', null, null);
+      if (a.pos.y < Math.min(-5, (M.minFloor === undefined ? 0 : M.minFloor) - 3)) a.applyDamage(999, 1, 'generic', null, null);
       if (M.deadlyAt(a.pos.x, a.pos.y, a.pos.z)) {
         C.dust(new THREE.Vector3(a.pos.x, a.pos.y + 0.7, a.pos.z), 1.9, M.theme.waterFx || 0xbfeaf2); if (G.Audio.splash) G.Audio.splash(a.pos);
         a.applyDamage(999, 1, 'generic', null, { id: 'pool', name: M.theme.deadName || 'Líquido letal', cat: 'grenade', reward: 0 }, null);
