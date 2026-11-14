@@ -2,7 +2,7 @@
 // (rotas, defesas, bombsites) e conferidos com a mesma física da granada do jogo. Também move o jogador (cheat offline) e roda o
 // modo "Treino de utilitários" (1v0: só você, granadas infinitas, a rodada nunca acaba).
 (function () {
-  const L = G.Lineups = { lists: {}, sel: null, team: 'T', util: 'all', site: 'all', showMarkers: true, showAll: true, showTags: true, showAllPaths: true, showPath: true, autoAim: false, open: false, busy: false, progress: 0, mapId: null };
+  const L = G.Lineups = { lists: {}, sel: null, team: 'T', util: 'all', site: 'all', range: 'all', showMarkers: true, showAll: true, showTags: true, showAllPaths: true, showPath: true, autoAim: false, open: false, busy: false, progress: 0, mapId: null };
   const U = G.U, $ = id => document.getElementById(id);
   const Gm = () => G.Game, Mp = () => G.Map;
   const D2R = U.D2R, GRAV = 20.3 * 0.4 * 2, EYE = 1.64;
@@ -10,13 +10,14 @@
   const fireId = team => team === 'CT' ? 'incend' : 'molotov';
   const utilName = (u, team) => u === 'fire' ? (team === 'CT' ? 'Incendiária' : 'Coquetel') : UTIL[u][0];
   const STRENGTH = [[1, 'clique esquerdo (força total)'], [0.7, 'esquerdo + direito juntos (força média)'], [0.42, 'clique direito (arremesso curto)']];
-  const ROLE = { defensores: ['segurar os defensores do', ['smoke', 'flash', 'he', 'fire']], centro: ['centro do', ['smoke', 'flash']], plantio: ['plantio do', ['smoke', 'he', 'fire']], entrada: ['entrada do', ['smoke', 'flash', 'he', 'fire']], atacantes: ['caminho dos atacantes ao', ['smoke', 'flash', 'he', 'fire']], bomba: ['bomba plantada no', ['smoke', 'he', 'fire']] };
+  const ROLE = { defensores: ['segurar os defensores do', ['smoke', 'flash', 'he', 'fire']], centro: ['centro do', ['smoke', 'flash']], plantio: ['plantio do', ['smoke', 'he', 'fire']], entrada: ['entrada do', ['smoke', 'flash', 'he', 'fire']], cachoeira: ['cachoeira sobre a borda do', ['smoke']], atacantes: ['caminho dos atacantes ao', ['smoke', 'flash', 'he', 'fire']], bomba: ['bomba plantada no', ['smoke', 'he', 'fire']] };
 
   // ---------------- física da granada (igual à de combat.js: stepNade) ----------------
-  function simulate(eye, yaw, aimPitch, strength, record) {
+  function simulate(eye, yaw, aimPitch, strength, record, v0) {
     const M = Mp(), pitch = aimPitch + 6 * D2R, dir = U.dirFrom(yaw, pitch, new THREE.Vector3());
     const pos = eye.clone().addScaledVector(dir, 0.4); if (M.pointSolid(pos.x, pos.y, pos.z)) pos.copy(eye);
     const vel = dir.clone().multiplyScalar(19 * strength), broken = new Set(), wins = (M.windows || []).filter(w => !w.off);
+    if (v0) { vel.x += -Math.sin(yaw) * v0; vel.z += -Math.cos(yaw) * v0; }       // lançar correndo: soma a velocidade do jogador
     const near = M.props.filter(p => !p.off && Math.hypot((p.x1 + p.x2) / 2 - eye.x, (p.z1 + p.z2) / 2 - eye.z) < 60);
     const solid = (x, y, z) => {
       const k = M.cellIndex(x, z); if (k < 0) return true;
@@ -53,30 +54,56 @@
   const gy = p => p.y !== undefined ? p.y : Mp().groundAt(p.x, p.z);
   const pt = (p, extra) => Object.assign({ x: p.x, y: gy(p), z: p.z }, extra || {});
   function collect(team) {
-    const sp = Mp().spots, stands = [], targets = [];
-    const add = (arr, p, tag) => { if (!p) return; const q = pt(p, { tag }); if (!arr.some(o => Math.hypot(o.x - q.x, o.z - q.z) < 3.5 && Math.abs(o.y - q.y) < 1.5)) arr.push(q); };
-    if (team === 'T') {
-      for (const X of ['A', 'B']) {
-        for (const r of sp.routes[X] || []) for (let i = Math.max(0, r.length - 5); i <= r.length - 2; i++) add(stands, r[i], X);
-        for (const p of sp['post' + X] || []) add(stands, p, X);
+    const M = Mp(), sp = M.spots, stands = [], targets = [], spawns = team === 'T' ? sp.tSpawn : sp.ctSpawn;
+    const isBase = p => spawns.some(q => Math.hypot(q.x - p.x, q.z - p.z) < 9);
+    const add = (arr, p, tag) => { if (!p) return; const q = pt(p, { tag }); q.base = isBase(q); if (!arr.some(o => Math.hypot(o.x - q.x, o.z - q.z) < 3.5 && Math.abs(o.y - q.y) < 1.5)) arr.push(q); };
+    for (const X of ['A', 'B']) {
+      for (const r of sp.routes[X] || []) r.forEach(p => add(stands, p, X));
+      for (const key of ['hold', 'post']) (sp[key + X] || []).forEach(p => add(stands, p, X));
+      if (team === 'T') {
         (sp['hold' + X] || []).forEach(p => targets.push(pt(p, { role: 'defensores', site: X })));
         targets.push(pt(sp[X], { role: 'centro', site: X }));
         (sp['plant' + X] || []).slice(0, 2).forEach(p => targets.push(pt(p, { role: 'plantio', site: X })));
         for (const r of sp.routes[X] || []) if (r.length) targets.push(pt(r[r.length - 1], { role: 'entrada', site: X }));
-      }
-      add(stands, sp.tSpawn[0], 'A'); (sp.holdMid || []).slice(0, 1).forEach(p => add(stands, p, 'A'));
-    } else {
-      for (const X of ['A', 'B']) {
-        (sp['hold' + X] || []).forEach(p => add(stands, p, X));
+      } else {
         for (const r of sp.routes[X] || []) for (let i = Math.max(0, r.length - 4); i <= r.length - 2; i++) targets.push(pt(r[i], { role: 'atacantes', site: X }));
         (sp['plant' + X] || []).slice(0, 2).forEach(p => targets.push(pt(p, { role: 'bomba', site: X })));
         targets.push(pt(sp[X], { role: 'centro', site: X }));
       }
-      add(stands, sp.ctSpawn[0], 'A'); (sp.holdMid || []).slice(0, 2).forEach(p => add(stands, p, 'A'));
+      // fumaça cachoeira: bordas altas perto do bombsite (a fumaça escorre para o nível de baixo)
+      const W = M.W, H = M.H, c3 = [];
+      for (let j = 2; j < H - 2; j++) for (let i = 2; i < W - 2; i++) {
+        const k = j * W + i; if (M.isWall[k] || M.navBlocked[k] || M.cb[k] < 900 || M.water[k]) continue;
+        let drop = 0; for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nk = (j + dj) * W + i + di; if (M.isWall[nk]) continue; drop = Math.max(drop, M.floor[k] - M.floor[nk]); }
+        if (drop < 2.0) continue; const x = M.cx(i), z = M.cx(j), d = Math.hypot(x - sp[X].x, z - sp[X].z); if (d < 22) c3.push({ x, z, y: M.floor[k], d });
+      }
+      c3.sort((a, b) => a.d - b.d); const pickL = [];
+      for (const q of c3) { if (pickL.length >= 3) break; if (pickL.every(o => Math.hypot(o.x - q.x, o.z - q.z) > 6)) pickL.push(q); }
+      pickL.forEach(q => targets.push({ x: q.x, y: q.y, z: q.z, role: 'cachoeira', site: X }));
     }
-    // sem repetir alvos muito próximos do mesmo papel
+    spawns.forEach(p => add(stands, p, 'A')); (sp.holdMid || []).forEach(p => add(stands, p, 'A')); (sp.lurk || []).forEach(p => add(stands, p, 'A'));
     const ts = []; for (const t of targets) if (!ts.some(o => o.role === t.role && o.site === t.site && Math.hypot(o.x - t.x, o.z - t.z) < 2.5 && Math.abs(o.y - t.y) < 1.5)) ts.push(t);
-    return { stands, targets: ts };
+    // candidatos para lançar correndo: células livres e abertas a 24–44 m de cada alvo, mais as posições das bases
+    const far = new Map();
+    for (const T of ts) {
+      const list = [];
+      for (let j = 2; j < M.H - 2; j++) for (let i = 2; i < M.W - 2; i++) {
+        const k = j * M.W + i; if (M.isWall[k] || M.navBlocked[k] || M.ramp[k] || M.water[k] || M.cb[k] < 900) continue;
+        const x = M.cx(i), z = M.cx(j), d = Math.hypot(x - T.x, z - T.z); if (d < 24 || d > 44) continue;
+        list.push({ x, y: M.floor[k], z, h: G.U.hash2(i * 7 + 3, j * 11 + 5) });
+      }
+      list.sort((a, b) => a.h - b.h); const pick = list.slice(0, 22);
+      for (const p of spawns) {
+        const d = Math.hypot(p.x - T.x, p.z - T.z); if (d >= 24 && d <= 44) pick.push(Object.assign(pt(p), {}));
+        else if (d > 44 && d <= 53) {       // largando a corrida direto da base: o ponto de soltar fica 9 m à frente do spawn
+          const qx = p.x + (T.x - p.x) / d * 9, qz = p.z + (T.z - p.z) / d * 9, qk = M.cellIndex(qx, qz);
+          if (qk >= 0 && !M.isWall[qk] && !M.navBlocked[qk] && M.cb[qk] > 900 && Math.abs(M.floor[qk] - gy(p)) < 0.6) pick.push({ x: qx, y: M.floor[qk], z: qz, runBase: true });
+        }
+      }
+      pick.forEach(q => { q.base = q.runBase || isBase(q); });
+      far.set(T, pick);
+    }
+    return { stands, targets: ts, far };
   }
 
   // ---------------- solucionador ----------------
@@ -104,54 +131,88 @@
           }
         }
       }
-      for (const u in best) res.push(Object.assign(best[u], { stand, target: T }));
+      for (const u in best) res.push(Object.assign(best[u], { stand, target: T, mode: 'parado', v0: 0, range: d > 20 ? 'longo' : 'curto', fromBase: !!stand.base }));
     }
+    return res;
+  }
+  // lançamento correndo em linha reta (velocidade da corrida soma ao arremesso): alcance de 24 a 44 m
+  function solveRun(stand, T, v0) {
+    const M = Mp(), eye = new THREE.Vector3(stand.x, stand.y + EYE, stand.z), res = [];
+    if (M.pointSolid(eye.x, eye.y, eye.z) || M.pointSolid(stand.x, stand.y + 0.2, stand.z)) return res;
+    const dx = T.x - stand.x, dz = T.z - stand.z, d = Math.hypot(dx, dz); if (d < 22 || d > 46) return res;
+    const yaw = U.yawTo(dx, dz), dy = (T.y + 0.2) - eye.y, v = 19, best = {};
+    const rng = th => { const vv = v * Math.sin(th), vh = v * Math.cos(th) + v0, disc = vv * vv - 2 * GRAV * dy; if (disc < 0) return -1; return vh * (vv + Math.sqrt(disc)) / GRAV; };
+    const roots = []; let a = -0.25, fa = rng(a) - d;
+    for (let th = -0.2; th <= 1.3; th += 0.04) { const fb = rng(th) - d; if (fa > -1e8 && fa * fb < 0) { let lo = th - 0.04, hi = th; for (let q = 0; q < 14; q++) { const mid = (lo + hi) / 2; if ((rng(lo) - d) * (rng(mid) - d) <= 0) hi = mid; else lo = mid; } roots.push((lo + hi) / 2); } fa = fb; }
+    for (const th of roots) for (const off of [-2, 0, 2]) {
+      const aim = th - 6 * D2R + off * D2R; if (Math.abs(aim) > 1.4) continue;
+      const r = simulate(eye, yaw, aim, 1, false, v0);
+      for (const u of ROLE[T.role][1]) {
+        const land = r[u]; if (!land) continue; const err = Math.hypot(land.x - T.x, land.z - T.z) + 0.4 * Math.abs(land.y - T.y); if (err > 2.4) continue;
+        const sc = err + 0.6 + (th > 0.8 ? 0.3 : 0); if (!best[u] || sc < best[u].sc) best[u] = { sc, err, util: u, strength: 1, yaw, pitch: aim, land: land.clone() };
+      }
+    }
+    for (const u in best) res.push(Object.assign(best[u], { stand, target: T, mode: 'corrida', v0, range: 'longo', fromBase: !!stand.base, runStart: { x: stand.x + Math.sin(yaw) * 9, y: stand.y, z: stand.z + Math.cos(yaw) * 9 } }));
     return res;
   }
   L.compute = async (team) => {
     const mid = Mp().current, key = mid + '|' + team;
     if (L.lists[key]) return L.lists[key];
     L.busy = true; L.progress = 0; render();
-    const { stands, targets } = collect(team), all = [];
+    const { stands, targets, far } = collect(team), all = [], v0 = G.PHYS.RUN * 0.98, tl = targets.length;
+    const total = stands.length + tl;
     for (let i = 0; i < stands.length; i++) {
       all.push(...solveStand(stands[i], targets, team));
-      L.progress = (i + 1) / stands.length; if (L.open) renderProgress();
+      L.progress = (i + 1) / total; if (L.open) renderProgress();
       await new Promise(r => setTimeout(r, 0));
     }
-    // escolhe os melhores por (utilitário, papel, bombsite), com estandes diferentes
-    const groups = {}; for (const c of all) { const k = c.util + '|' + c.target.role + '|' + c.target.site; (groups[k] = groups[k] || []).push(c); }
+    let ti = 0;
+    for (const T of targets) {
+      for (const S of far.get(T) || []) all.push(...solveRun(S, T, v0));
+      ti++; L.progress = (stands.length + ti) / total; if (L.open) renderProgress();
+      await new Promise(r => setTimeout(r, 0));
+    }
+    // escolhe os melhores por (utilitário, papel, bombsite, alcance), com estandes diferentes
+    const groups = {}; for (const c of all) { const k = c.util + '|' + c.target.role + '|' + c.target.site + '|' + c.range + (c.fromBase ? 'b' : ''); (groups[k] = groups[k] || []).push(c); }
     const out = [];
     for (const k in groups) {
       groups[k].sort((a, b) => a.sc - b.sc); const pick = [];
-      for (const c of groups[k]) { if (pick.length >= 2) break; if (pick.every(p => Math.hypot(p.stand.x - c.stand.x, p.stand.z - c.stand.z) > 5)) pick.push(c); }
+      for (const c of groups[k]) { if (pick.length >= 2) break; if (pick.every(p => Math.hypot(p.stand.x - c.stand.x, p.stand.z - c.stand.z) > 6)) pick.push(c); }
       out.push(...pick);
     }
     out.sort((a, b) => (a.target.site > b.target.site) - (a.target.site < b.target.site) || a.util.localeCompare(b.util) || a.sc - b.sc);
-    out.forEach((c, i) => { c.id = i; c.name = utilName(c.util, team) + ' · ' + ROLE[c.target.role][0] + ' ' + c.target.site; c.team = team; });
-    L.lists[key] = out.slice(0, 64); L.busy = false; L.progress = 1;
+    out.forEach((c, i) => {
+      c.id = i; c.team = team;
+      const base = c.target.role === 'cachoeira' ? 'Fumaça cachoeira · ' + ROLE.cachoeira[0] + ' ' + c.target.site : utilName(c.util, team) + ' · ' + ROLE[c.target.role][0] + ' ' + c.target.site;
+      c.name = (c.fromBase ? 'Da base · ' : c.range === 'longo' ? 'Longo · ' : '') + base;
+    });
+    L.lists[key] = out.slice(0, 170); L.busy = false; L.progress = 1;
     if (L.sel && L.sel.team === team && Mp().current !== mid) L.sel = null;
     buildMarkers(); render();
     return L.lists[key];
   };
   const cur = () => (L.lists[(Mp() && Mp().current) + '|' + L.team] || []);
   const pool = () => L.showAll ? cur() : filtered();
-  const filtered = () => cur().filter(c => (L.util === 'all' || c.util === L.util) && (L.site === 'all' || c.target.site === L.site));
+  const filtered = () => cur().filter(c => (L.util === 'all' || (L.util === 'cach' ? c.target.role === 'cachoeira' : c.util === L.util)) && (L.site === 'all' || c.target.site === L.site) && (L.range === 'all' || (L.range === 'base' ? c.fromBase : c.range === L.range)));
 
   // ---------------- ações ----------------
   L.goto = (c) => {
     const h = Gm().human; if (!h) return;
-    h.pos.set(c.stand.x, c.stand.y + 0.02, c.stand.z); h.vel.set(0, 0, 0); h.yaw = c.yaw; h.pitch = c.pitch; h.crouch = 0;
+    const q = c.mode === 'corrida' ? c.runStart : c.stand;           // lançamento correndo: começa 9 m antes do ponto de soltar
+    h.pos.set(q.x, q.y + 0.02, q.z); h.vel.set(0, 0, 0); h.yaw = c.yaw; h.pitch = c.pitch; h.crouch = 0;
     L.sel = c; buildPath(); if (Gm().lock) setTimeout(() => Gm().lock(), 60);
+    if (c.mode === 'corrida') G.HUD.centerMsg('Segure W e corra em linha reta; lance (clique esquerdo) ao passar pelo círculo', 4);
   };
   L.throwNow = (c) => {
     const h = Gm().human; if (!h || !h.alive) return;
-    L.goto(c); const id = c.util === 'fire' ? fireId(c.team) : c.util; if (!h.inv.grenades.includes(id)) h.inv.grenades.push(id);
+    L.goto(c); h.pos.set(c.stand.x, c.stand.y + 0.02, c.stand.z); const id = c.util === 'fire' ? fireId(c.team) : c.util; if (!h.inv.grenades.includes(id)) h.inv.grenades.push(id);
+    if (c.mode === 'corrida') h.vel.set(-Math.sin(c.yaw) * c.v0, 0, -Math.cos(c.yaw) * c.v0);
     G.Combat.throwNade(h, id, c.strength, c.yaw, c.pitch);
   };
   L.select = (c) => { L.sel = c; buildPath(); render(); };
   L.next = (d) => { const f = filtered(); if (!f.length) return; let i = f.indexOf(L.sel); i = i < 0 ? 0 : (i + d + f.length) % f.length; L.sel = f[i]; buildPath(); render(); if (Gm().human) G.HUD.centerMsg(L.sel.name, 1.2); };
   L.clear = () => { G.Combat.clearRound(); if (G.Smoke && G.Smoke.clear) G.Smoke.clear(); };
-  L.start = () => { L.team = Gm().settings.team; L.util = 'all'; L.site = 'all'; L.showMarkers = true; L.sel = null; L.compute(L.team).then(() => { const f = filtered(); if (f.length && !L.sel) L.sel = f[0]; buildPath(); render(); G.HUD.centerMsg('TREINO DE UTILITÁRIOS · L abre os lineups · T vai até a posição · Y lança · U limpa', 5); }); G.HUD.centerMsg('Calculando os lineups deste mapa…', 3); };
+  L.start = () => { L.team = Gm().settings.team; L.util = 'all'; L.site = 'all'; L.range = 'all'; L.showMarkers = true; L.sel = null; L.compute(L.team).then(() => { const f = filtered(); if (f.length && !L.sel) L.sel = f[0]; buildPath(); render(); G.HUD.centerMsg('TREINO DE UTILITÁRIOS · L abre os lineups · T vai até a posição · Y lança · U limpa', 5); }); G.HUD.centerMsg('Calculando os lineups deste mapa…', 3); };
   L.stop = () => { L.open = false; const p = $('luPanel'); if (p) p.classList.add('hidden'); clearMarkers(); hideAim(); L.sel = null; };
   L.utilStep = (dt) => {
     const h = Gm().human; if (!h || !h.alive) return;
@@ -174,13 +235,18 @@
       const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.4, 6), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.45, depthWrite: false }));
       beam.position.set(c.stand.x, c.stand.y + 1.2, c.stand.z); group.add(beam);
     }
-    Gm().scene.add(group); builtFor = Mp().current + '|' + L.team + '|' + L.util + '|' + L.site + '|' + L.showAll;
+    for (const c of pool()) if (c.mode === 'corrida') {      // largada (azul) e linha de corrida até o ponto de soltar
+      const q = c.runStart, rg = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.45, 20), new THREE.MeshBasicMaterial({ color: 0x4aa8ff, side: THREE.DoubleSide, transparent: true, opacity: 0.85, depthWrite: false }));
+      rg.rotation.x = -Math.PI / 2; rg.position.set(q.x, q.y + 0.06, q.z); rg.renderOrder = 8; group.add(rg);
+      const ln = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(q.x, q.y + 0.08, q.z), new THREE.Vector3(c.stand.x, c.stand.y + 0.08, c.stand.z)]), new THREE.LineBasicMaterial({ color: 0x4aa8ff, transparent: true, opacity: 0.6 })); group.add(ln);
+    }
+    Gm().scene.add(group); builtFor = Mp().current + '|' + L.team + '|' + L.util + '|' + L.site + '|' + L.range + '|' + L.showAll;
     buildPath();
   }
   function buildPath() {
     if (pathObj && group) { group.remove(pathObj); pathObj = null; } if (landObj && group) { group.remove(landObj); landObj = null; }
     if (!group || !L.sel || !L.showPath) return;
-    const c = L.sel, eye = new THREE.Vector3(c.stand.x, c.stand.y + EYE, c.stand.z), r = simulate(eye, c.yaw, c.pitch, c.strength, true);
+    const c = L.sel, eye = new THREE.Vector3(c.stand.x, c.stand.y + EYE, c.stand.z), r = simulate(eye, c.yaw, c.pitch, c.strength, true, c.v0);
     const pts = r.path; const g = new THREE.BufferGeometry().setFromPoints(pts);
     pathObj = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0x7cf3ff, transparent: true, opacity: 0.9, depthTest: false })); pathObj.renderOrder = 9; group.add(pathObj);
     landObj = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 8), new THREE.MeshBasicMaterial({ color: UTIL[c.util][1], transparent: true, opacity: 0.8, depthTest: false })); landObj.position.copy(c.land); landObj.renderOrder = 9; group.add(landObj);
@@ -194,10 +260,10 @@
   function hideAll(fromT, fromR) { for (let i = fromT || 0; i < tagPool.length; i++) tagPool[i].style.display = 'none'; for (let i = fromR || 0; i < retPool.length; i++) retPool[i].style.display = 'none'; }
   function hideAim() { hideAll(0, 0); if (hudEl) hudEl.style.display = 'none'; if (nearGroup && nearGroup.parent) nearGroup.parent.remove(nearGroup); nearGroup = null; nearKey = null; }
   const tv = new THREE.Vector3();
-  function standsOf(list) { const m = new Map(); for (const c of list) { const k = c.stand.x.toFixed(1) + ',' + c.stand.z.toFixed(1); if (!m.has(k)) m.set(k, { key: k, stand: c.stand, items: [] }); m.get(k).items.push(c); } return [...m.values()]; }
+  function standsOf(list) { const m = new Map(); for (const c of list) { const k = c.stand.x.toFixed(1) + ',' + c.stand.z.toFixed(1) + (c.mode === 'corrida' ? 'r' : ''); if (!m.has(k)) m.set(k, { key: k, stand: c.stand, items: [], run: c.mode === 'corrida' }); m.get(k).items.push(c); } return [...m.values()]; }
   L.frame = (cam) => {
     const gm = Gm(), h = gm.human; if (!h || gm.phase === 'menu' || !Mp()) { hideAim(); return; }
-    const key = Mp().current + '|' + L.team + '|' + L.util + '|' + L.site + '|' + L.showAll;
+    const key = Mp().current + '|' + L.team + '|' + L.util + '|' + L.site + '|' + L.range + '|' + L.showAll;
     if (L.showMarkers && (builtFor !== key || !group) && cur().length) buildMarkers();
     if (!L.showMarkers && group) clearMarkers();
     if (!hudEl) hudEl = mkEl('luHudEl'), hudEl.id = 'luHud';
@@ -208,7 +274,7 @@
     // rótulos dos locais (com a quantidade de utilitários de cada tipo e a distância)
     let ti = 0;
     if (L.showTags) for (const o of stands) {
-      if (ti >= 26 || o.d > 90) break; if (o.d < 2.2 && o.dy < 2) continue;
+      if (ti >= 26 || o.d > 90) break; if (o.d < (o.s.run ? 12 : 2.2) && o.dy < 2.5) continue;
       const P = tv.set(o.s.stand.x, o.s.stand.y + 2.8, o.s.stand.z).project(cam); if (P.z >= 1 || Math.abs(P.x) > 1.05 || Math.abs(P.y) > 1.05) continue;
       const el = tagPool[ti] || (tagPool[ti] = mkEl('luTag')); ti++;
       const cnt = {}; o.s.items.forEach(c => cnt[c.util] = (cnt[c.util] || 0) + 1);
@@ -216,7 +282,7 @@
       el.style.display = 'flex'; el.style.left = ((P.x * 0.5 + 0.5) * W) + 'px'; el.style.top = ((-P.y * 0.5 + 0.5) * Hh) + 'px';
     }
     // no local: TODAS as miras daquele ponto aparecem de uma vez (cada uma com sua cor, nome e força)
-    const near = stands.find(o => o.d < 2.0 && o.dy < 2.0);
+    const near = stands.find(o => o.d < (o.s.run ? 12 : 2.0) && o.dy < 2.5);
     let ri = 0;
     if (near) {
       const eye = h.eye(tv), items = near.s.items.slice();
@@ -244,7 +310,7 @@
         if (nearKey !== near.s.key + L.showAll) {
           if (nearGroup && nearGroup.parent) nearGroup.parent.remove(nearGroup); nearGroup = new THREE.Group(); nearKey = near.s.key + L.showAll;
           for (const c of items) {
-            const r = simulate(new THREE.Vector3(c.stand.x, c.stand.y + EYE, c.stand.z), c.yaw, c.pitch, c.strength, true), col = UTIL[c.util][1];
+            const r = simulate(new THREE.Vector3(c.stand.x, c.stand.y + EYE, c.stand.z), c.yaw, c.pitch, c.strength, true, c.v0), col = UTIL[c.util][1];
             const ln = new THREE.Line(new THREE.BufferGeometry().setFromPoints(r.path), new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: 0.85, depthTest: false })); ln.renderOrder = 9; nearGroup.add(ln);
             const lb = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.8, depthTest: false })); lb.position.copy(c.land); lb.renderOrder = 9; nearGroup.add(lb);
           }
@@ -256,7 +322,7 @@
     hideAll(ti, ri);
     // texto de ajuda
     const c = L.sel;
-    if (near) { hudEl.style.display = 'block'; hudEl.innerHTML = `<b>Neste local: ${near.s.items.length} utilitário(s)</b><br>Mire em um dos círculos coloridos e lance com a força indicada`; }
+    if (near) { hudEl.style.display = 'block'; hudEl.innerHTML = `<b>Neste local: ${near.s.items.length} utilitário(s)</b><br>${near.s.run ? 'Corra em linha reta (W) e lance ao passar pelo círculo, com o clique esquerdo' : 'Mire em um dos círculos coloridos e lance com a força indicada'}`; }
     else if (c) { const dist = Math.hypot(h.pos.x - c.stand.x, h.pos.z - c.stand.z); hudEl.style.display = 'block'; hudEl.innerHTML = `<b>${esc(c.name)}</b><br>Vá até o círculo branco (${dist.toFixed(0)} m)`; }
     else hudEl.style.display = 'none';
     if (c && L.autoAim) { const dist = Math.hypot(h.pos.x - c.stand.x, h.pos.z - c.stand.z); if (dist < 1.3) { h.yaw += U.angDiff(h.yaw, c.yaw) * 0.25; h.pitch += (c.pitch - h.pitch) * 0.25; } }
@@ -270,19 +336,21 @@
     const sw = (k, vals) => vals.map(([v, l]) => `<button data-${k}="${v}" class="${L[k === 'team' ? 'team' : k] === v ? 'on' : ''}">${l}</button>`).join('');
     return `<div class="lu-box">
       <div class="lu-row"><span>Lado</span><div class="lu-seg">${sw('team', [['T', 'Insurgentes'], ['CT', 'Força Tática']])}</div></div>
-      <div class="lu-row"><span>Utilitário</span><div class="lu-seg">${sw('util', [['all', 'Todos'], ['smoke', 'Fumaça'], ['flash', 'Flash'], ['he', 'HE'], ['fire', tm === 'CT' ? 'Incendiária' : 'Coquetel']])}</div></div>
+      <div class="lu-row"><span>Utilitário</span><div class="lu-seg">${sw('util', [['all', 'Todos'], ['smoke', 'Fumaça'], ['cach', 'Cachoeira'], ['flash', 'Flash'], ['he', 'HE'], ['fire', tm === 'CT' ? 'Incendiária' : 'Coquetel']])}</div></div>
+      <div class="lu-row"><span>Alcance</span><div class="lu-seg">${sw('range', [['all', 'Todos'], ['curto', 'Curtos'], ['longo', 'Longos'], ['base', 'Da base']])}</div></div>
       <div class="lu-row"><span>Bombsite</span><div class="lu-seg">${sw('site', [['all', 'Todos'], ['A', 'A'], ['B', 'B']])}</div></div>
       <div class="lu-row lu-opts"><label><input type="checkbox" id="luMk" ${L.showMarkers ? 'checked' : ''}> Marcadores no mapa</label><label><input type="checkbox" id="luPth" ${L.showPath ? 'checked' : ''}> Trajetória</label><label><input type="checkbox" id="luAA" ${L.autoAim ? 'checked' : ''}> Mira automática</label></div>
       <div class="lu-row lu-opts"><label><input type="checkbox" id="luAll" ${L.showAll ? 'checked' : ''}> Mostrar todos os locais (ignora filtros)</label><label><input type="checkbox" id="luTag" ${L.showTags ? 'checked' : ''}> Rótulos dos locais</label><label><input type="checkbox" id="luAP" ${L.showAllPaths ? 'checked' : ''}> Trajetórias de todas as miras do local</label></div>
       ${L.busy ? `<div class="lu-prog"><i style="width:${Math.round(L.progress * 100)}%"></i></div><p class="lu-note">Calculando os lineups deste mapa…</p>` :
         !hasList ? `<button class="lu-go" id="luCalc">Calcular lineups deste mapa</button>` :
-        `<div class="lu-list">${list.map(c => `<div class="lu-item ${L.sel === c ? 'on' : ''}" data-i="${c.id}"><i style="background:#${UTIL[c.util][1].toString(16).padStart(6, '0')}"></i><b>${esc(c.name)}</b><small>${STRENGTH.find(x => x[0] === c.strength)[1]}</small>
+        `<div class="lu-list">${list.map(c => `<div class="lu-item ${L.sel === c ? 'on' : ''}" data-i="${c.id}"><i style="background:#${UTIL[c.util][1].toString(16).padStart(6, '0')}"></i><b>${esc(c.name)}</b><small>${c.mode === 'corrida' ? 'correndo · ' : ''}${STRENGTH.find(x => x[0] === c.strength)[1]} · ${Math.round(Math.hypot(c.target.x - c.stand.x, c.target.z - c.stand.z))} m</small>
           <span><button data-a="sel" data-i="${c.id}">Mostrar</button><button data-a="go" data-i="${c.id}">Ir</button><button data-a="throw" data-i="${c.id}">Lançar</button></span></div>`).join('') || '<p class="lu-note">Nenhum lineup com esse filtro.</p>'}</div>`}
       <p class="lu-note">Teclas: <b>L</b> painel · <b>T</b> ir à posição · <b>Y</b> lançar · <b>,</b> <b>.</b> trocar · <b>U</b> limpar granadas. Só offline.</p></div>`;
   }
   function bind(root) {
     root.querySelectorAll('[data-team]').forEach(b => b.onclick = () => { L.team = b.dataset.team; L.sel = null; clearMarkers(); L.compute(L.team); render(); });
     root.querySelectorAll('[data-util]').forEach(b => b.onclick = () => { L.util = b.dataset.util; clearMarkers(); render(); });
+    root.querySelectorAll('[data-range]').forEach(b => b.onclick = () => { L.range = b.dataset.range; clearMarkers(); render(); });
     root.querySelectorAll('[data-site]').forEach(b => b.onclick = () => { L.site = b.dataset.site; clearMarkers(); render(); });
     const mk = root.querySelector('#luMk'); if (mk) mk.onchange = () => { L.showMarkers = mk.checked; if (!mk.checked) clearMarkers(); else buildMarkers(); };
     const ph = root.querySelector('#luPth'); if (ph) ph.onchange = () => { L.showPath = ph.checked; buildPath(); };

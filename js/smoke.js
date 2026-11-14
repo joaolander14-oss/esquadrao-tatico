@@ -4,7 +4,7 @@
   const Sm = G.Smoke = {};
   const U = G.U;
   const M = () => G.Map;
-  const V = 0.75, MAXV = 700, MAXD = 15, LIFE = 20;
+  const V = 0.75, MAXV = 1000, MAXD = 18, LIFE = 20;
   Sm.list = [];
   let scene = null, puff = null, veil = null;
   const tv = new THREE.Vector3();
@@ -85,14 +85,15 @@
         if (seen.has(kk)) continue;
         // domo de base achatada: sobe mais devagar do que espalha
         if (dj > 0 && (nj > 5 || d < nj * 2.2)) continue;
-        if (nj < -3) continue;
+        if (nj < -14) continue;        // pode escorrer até ~10 m para baixo (fumaça cachoeira)
         const nx = origin.x + ni * V, ny = origin.y + nj * V, nz = origin.z + nk * V;
         if (Math.hypot(nx - origin.x, nz - origin.z) > 7.2) continue;
         if (map.pointSolid(nx, ny, nz)) continue;
         // não atravessa paredes finas entre centros (checa o meio do caminho)
         if (map.pointSolid((x + nx) / 2, (y + ny) / 2, (z + nz) / 2)) continue;
         seen.add(kk);
-        q.push([ni, nj, nk, d + 1]);
+        if (dj < 0) q.splice(head, 0, [ni, nj, nk, d + 0.25]);      // desce primeiro: a fumaça cai pela borda como uma cachoeira
+        else q.push([ni, nj, nk, d + 1]);
       }
     }
     // partículas (2 por voxel)
